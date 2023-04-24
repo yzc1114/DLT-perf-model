@@ -1,13 +1,8 @@
-from typing import Tuple, Optional, Union, List
-
-from objects import GPUType
-import numpy as np
-import torch
-import pathlib
-from torch.utils.data import Dataset
-from data_util import MDataset, datasets_path
 from enum import Enum
 from functools import lru_cache
+from typing import Tuple, Optional, Union, List
+
+import numpy as np
 
 
 class OperatorType(Enum):
@@ -49,7 +44,7 @@ class Operator:
         self.output_tensor_size: int = output_tensor_size
         self.FLOPS: float = FLOPS
         self.hyper_parameters: Optional[Tuple[Union[float, int]]
-                                        ] = hyper_parameters
+        ] = hyper_parameters
 
     def to_feature(self, op_type_encoding="one-hot", mode="complex"):
         if mode == "complex":
@@ -71,4 +66,3 @@ class Operator:
         else:
             raise ValueError(
                 "Invalid mode. Mode must be 'complex' or 'simple'.")
-

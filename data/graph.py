@@ -1,14 +1,14 @@
 import random
 import string
 from abc import ABC, abstractmethod
+from collections import namedtuple
 from typing import List, Optional, Dict, Tuple, Any
 
 import numpy as np
 
-from data_util import pad_np_vectors
 from objects import GPUType, OptimizerType
 from op import Operator, OperatorType
-from collections import namedtuple
+from util import pad_np_vectors
 
 
 class GraphNode:
@@ -44,6 +44,7 @@ class GraphNode:
 
 class Label:
     DurationTuple = namedtuple(typename="DurationTuple", field_names=["forward", "backward", "optimization"])
+
     def __init__(self, subgraph_durations: DurationTuple, node_durations: List[DurationTuple]):
         self.subgraph_durations: Label.DurationTuple = subgraph_durations
         self.node_durations: List[Label.DurationTuple] = node_durations
@@ -68,7 +69,7 @@ class Graph:
         self.Serial_feature_extractor: Graph.SerialFeatureExtractor = Graph.SerialFeatureExtractor(self)
 
     @staticmethod
-    def from_data(data: Optional[Dict]=None, dummy: bool = False) -> 'Graph':
+    def from_data(data: Optional[Dict] = None, dummy: bool = False) -> 'Graph':
         def generate_dummy():
             random_graph_name = ''.join(random.choices(
                 string.ascii_letters + string.digits, k=10))
@@ -91,15 +92,17 @@ class Graph:
                 op_type = random.choice(operator_types)
                 op = Operator(op_type, **args)
                 last_node = None if len(nodes) == 0 else nodes[-1]
+
                 def added_times(times):
-                    start_time = random.uniform(0, 1) if last_node is None else times[-1] + random.uniform(0,1)
+                    start_time = random.uniform(0, 1) if last_node is None else times[-1] + random.uniform(0, 1)
                     duration = random.uniform(0, 1)
                     return start_time, start_time + duration
+
                 current_node = GraphNode(i,
                                          op,
                                          forward_times=added_times(last_node.forward_times),
                                          backward_times=added_times(last_node.backward_times),
-                                         optimizer_times=added_times(last_node.optimizer_times),)
+                                         optimizer_times=added_times(last_node.optimizer_times), )
                 if last_node is not None:
                     last_node.add_neighbors(current_node)
                 nodes.append(current_node)
@@ -149,7 +152,8 @@ class Graph:
         def __init__(self, graph: 'Graph'):
             self.graph: Graph = graph
 
-        def node_features(self, op_type_encoding="one-hot", mode="complex", encode_hyper_to_node: bool=True) -> Tuple[List[Any], List[Label]]:
+        def node_features(self, op_type_encoding="one-hot", mode="complex", encode_hyper_to_node: bool = True) -> Tuple[
+            List[Any], List[Label]]:
             graph = self.graph
             X, Y = list(), list()
             optimizer_feature = graph._optimizer_feature()
@@ -198,7 +202,7 @@ class Graph:
         def _subgraph_feature(self, nodes: List[GraphNode]) -> Tuple[Tuple[np.array, np.array], Label]:
             feature_matrix = list()
             for node in nodes:
-                feature_matrix.append(node.op.to_feature(mode="simple"))
+                feature_matrix.append(node.op.to_feature(mode="complex"))
 
             adjacency_matrix = list()
             for node in nodes:
@@ -215,7 +219,7 @@ class Graph:
             subgraph_node_size = len(graph.nodes) // subgraph_count
             subgraphs = list()
             node_id_to_group_idx = dict()
-            for i in range(subgraph_node_size):
+            for i in range(subgraph_count):
                 subgraph_nodes = graph.nodes[i * subgraph_node_size: (i + 1) * subgraph_node_size]
                 subgraphs.append(subgraph_nodes)
                 for node in subgraph_nodes:
@@ -225,7 +229,7 @@ class Graph:
             for subgraph in subgraphs:
                 subgraph_features = list()
                 for node in subgraph:
-                    node_feature = np.array(node.op.to_feature(mode="simple"))
+                    node_feature = np.array(node.op.to_feature(mode="complex"))
                     subgraph_features.append(node_feature)
                 subgraph_features = pad_np_vectors(subgraph_features)
                 feature = np.sum(subgraph_features)
@@ -267,5 +271,3 @@ class Graph:
             feature_matrix = np.array(feature_matrix)
             labels = self.graph._subgraph_label(nodes)
             return feature_matrix, labels
-
-

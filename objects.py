@@ -2,6 +2,21 @@ from enum import Enum
 from functools import lru_cache
 from typing import List
 
+from torch.optim import Adam, RMSprop, SGD
+
+
+class Environment:
+    def __init__(self, gpu_type: 'GPUType', framework: str, cuda_version: str):
+        self.gpu_type: GPUType = gpu_type
+        self.framework: str = framework
+        self.cuda_version: str = cuda_version
+
+    def __str__(self):
+        return f"{self.gpu_type.name}_{self.framework}_{self.cuda_version}"
+
+    def __repr__(self):
+        return self.__str__()
+
 
 class GPUType(Enum):
     RTX2080Ti = 0
@@ -11,11 +26,16 @@ class GPUType(Enum):
     K80 = 4
 
 
+class DatasetType(Enum):
+    OP = 0
+    Grouping = 1
+    Subgraph = 2
+
+
 class OptimizerType(Enum):
-    Adam = 0
-    Momentum = 1
-    SGD = 2
-    RMSProp = 3
+    Adam = Adam
+    SGD = SGD
+    RMSProp = RMSprop
 
     @lru_cache(maxsize=None)
     def encode(self, method="one-hot") -> List:

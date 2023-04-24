@@ -1,9 +1,10 @@
-from abc import ABC, abstractmethod
-from graph import Graph
+from abc import ABC
+from abc import abstractmethod
+
+import torch.nn
 
 
-class PerfPredictor(ABC):
+class MModule(torch.nn.Module, ABC):
     @abstractmethod
-    def predict(self, graph: Graph) -> float:
+    def loss(self, inputs):
         pass
-
