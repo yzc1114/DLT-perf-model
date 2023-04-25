@@ -1,9 +1,8 @@
 from enum import Enum
 
-from MLP import MLPModel
-from base import MModule
-from data.dataset import MDataset
-from data.graph import Label
+from .MLP import MLPModel
+from .base import MModule
+from data import MDataset, FeatureKeys
 
 
 class ModelType(Enum):
@@ -18,10 +17,10 @@ class ModelType(Enum):
 class ModelFactory:
     @staticmethod
     def create_model(model_type: ModelType, train_ds: MDataset) -> MModule:
-        sample_x = train_ds.data[0]
-        sample_y = train_ds.targets[0]
-        assert isinstance(sample_y, Label)
+        sample_x_dict = train_ds.features[0]
+        sample_y_dict = train_ds.labels[0]
         if model_type == ModelType.MLP:
-            return MLPModel(input_dimension=len(sample_x), output_dimension=len(sample_y.node_durations[0]))
+            return MLPModel(input_dimension=len(sample_x_dict[FeatureKeys.X_OP_FEAT]),
+                            output_dimension=len(sample_y_dict[FeatureKeys.Y_OP_FEAT][0]))
         else:
             raise ValueError("Invalid model type.")

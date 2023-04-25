@@ -3,12 +3,13 @@ from itertools import product
 from typing import Tuple
 
 from transformers import TrainingArguments
+from transformers.trainer import EvalLoopOutput, EvalPrediction
 
-from config import TrainConfig
+from config import TrainConfig, EvalConfig
 from data.dataset import DatasetFactory, MDataset, DatasetType
 from models import ModelFactory, MModule, ModelType
 from objects import Environment
-from trainer import MTrainer
+from .trainer import MTrainer
 
 ckpts_dir = pathlib.Path(__file__).parent.parent / 'ckpts'
 logs_dir = pathlib.Path(__file__).parent.parent / 'logs'
@@ -26,11 +27,12 @@ class Coordinator:
                       dataset_normalization: str,
                       dataset_dummy: bool,
                       **dataset_params) -> Tuple[MDataset, MDataset]:
-        train_ds, eval_ds = DatasetFactory.create_dataset(dataset_environment,
-                                                          dataset_normalization,
-                                                          dataset_type,
-                                                          dummy=dataset_dummy,
-                                                          **dataset_params)
+        train_ds, eval_ds = \
+            DatasetFactory.create_dataset(dataset_environment,
+                                          dataset_normalization,
+                                          dataset_type,
+                                          dummy=dataset_dummy,
+                                          **dataset_params)
         return train_ds, eval_ds
 
     @staticmethod
@@ -40,10 +42,10 @@ class Coordinator:
         for attr in product_attrs:
             attr_value = train_config.__getattribute__(attr)
             if not isinstance(attr_value, list):
-                product_attr_values.append([attr_value])
+                product_attr_values.append((attr_value, ))
             else:
-                product_attr_values.append(attr_value)
-        for p in product(product_attr_values):
+                product_attr_values.append(tuple(attr_value))
+        for p in product(*product_attr_values):
             dataset_normalization = p[product_attrs.index("dataset_normalization")]
             dataset_params = p[product_attrs.index("dataset_params")]
 
@@ -70,6 +72,8 @@ class Coordinator:
                 per_device_eval_batch_size=train_config.batch_size,
                 logging_dir=train_logs_dir,
                 logging_steps=10,
+                remove_unused_columns=False,
+                include_inputs_for_metrics=True,
                 evaluation_strategy=train_config.evaluation_strategy,
                 load_best_model_at_end=train_config.load_best_model_at_end,
                 resume_from_checkpoint=train_config.resume_from_checkpoint,
@@ -88,10 +92,11 @@ class Coordinator:
             trainer.train()
 
     @staticmethod
-    def eval(eval_config: TrainConfig):
+    def eval(eval_config: EvalConfig):
         train_ds, eval_ds = Coordinator._init_dataset(
             dataset_environment=eval_config.dataset_environment,
             dataset_type=eval_config.dataset_type,
+            remove_unused_columns=False,
             dataset_normalization=eval_config.dataset_normalization,
             dataset_dummy=eval_config.dataset_dummy,
             **eval_config.dataset_params)

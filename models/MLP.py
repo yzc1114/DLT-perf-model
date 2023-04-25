@@ -1,7 +1,8 @@
 import torch
 from torch.nn import MSELoss
 
-from base import MModule
+from .base import MModule
+from data import FeatureKeys
 
 
 class MLPModel(MModule):
@@ -21,8 +22,10 @@ class MLPModel(MModule):
         return Y
 
     def loss(self, inputs):
-        labels = inputs.pop("labels")
-        outputs = self(**inputs)
-        logits = outputs.logits
-        loss = self.loss_fn(logits, labels)
+        labels = inputs["labels"]
+        # here, subgraph equals to op since a subgraph only contains one op
+        y_op_features = labels[FeatureKeys.Y_SUBGRAPH_FEAT]
+        x_op_features = inputs[FeatureKeys.X_OP_FEAT]
+        outputs = self(x_op_features)
+        loss = self.loss_fn(outputs, y_op_features)
         return loss, outputs

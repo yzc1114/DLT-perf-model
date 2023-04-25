@@ -27,7 +27,7 @@ class TrainConfig(DatasetConfigMixin):
     def __init__(self, train_config_js):
         super().__init__(train_config_js)
         # training
-        self.model_type_str = train_config_js.get("model_type_str", "MLP")
+        self.model_type_str = train_config_js.get("model", "MLP")
         self.model_type: ModelType = ModelType[self.model_type_str]
         self.train_seed = train_config_js.get("train_seed", 42)
         self.dataset_sample_seed = train_config_js.get("dataset_sample_seed", 42)
@@ -78,7 +78,7 @@ class Config:
                 "eval": EvalConfig
             }
             assert config_type in self.config_js
-            return [config_cls[config_type](sub_config_js) for sub_config_js in self.config_js["config_type"]]
+            return [config_cls[config_type](sub_config_js) for sub_config_js in self.config_js[config_type]]
 
         if self.config_type == "train":
             self.train_configs: List[TrainConfig] = load_configs(self.config_type)

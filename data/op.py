@@ -46,7 +46,7 @@ class Operator:
         self.hyper_parameters: Optional[Tuple[Union[float, int]]
         ] = hyper_parameters
 
-    def to_feature(self, op_type_encoding="one-hot", mode="complex"):
+    def to_feature_array(self, op_type_encoding="one-hot", mode="complex"):
         if mode == "complex":
             complex_feature_vector = [
                 *self.operator_type.encode(method=op_type_encoding),
