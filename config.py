@@ -33,9 +33,9 @@ class TrainConfig(DatasetConfigMixin):
         self.dataset_sample_seed = train_config_js.get("dataset_sample_seed", 42)
         self.num_train_epochs = train_config_js.get("num_train_epochs", 100)
         self.batch_size = train_config_js.get("batch_size", 64)
-        self.logging_steps = train_config_js.get("logging_steps", 10)
+        self.logging_steps = train_config_js.get("logging_steps", 100)
         self.evaluation_strategy = train_config_js.get("evaluation_strategy", "epoch")
-        self.eval_steps = train_config_js.get("eval_steps", 50)
+        self.eval_steps = train_config_js.get("eval_steps", 500)
         self.load_best_model_at_end = train_config_js.get("load_best_model_at_end", True)
         self.resume_from_checkpoint = train_config_js.get("resume_from_checkpoint", None)
         self.save_strategy = train_config_js.get("save_strategy", "epoch")
@@ -80,9 +80,11 @@ class Config:
             assert config_type in self.config_js
             return [config_cls[config_type](sub_config_js) for sub_config_js in self.config_js[config_type]]
 
+        self.train_configs: List[TrainConfig] = list()
+        self.eval_configs: List[EvalConfig] = list()
         if self.config_type == "train":
-            self.train_configs: List[TrainConfig] = load_configs(self.config_type)
+            self.train_configs = load_configs(self.config_type)
         elif self.config_type == "eval":
-            self.eval_configs: List[EvalConfig] = load_configs(self.config_type)
+            self.eval_configs = load_configs(self.config_type)
         else:
             raise ValueError(f"Invalid config type: {self.config_type}.")

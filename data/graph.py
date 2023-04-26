@@ -77,6 +77,19 @@ class Graph:
         self.GNN_based_feature_extractor: Graph.GNNBasedFeatureExtractor = Graph.GNNBasedFeatureExtractor(self)
         self.Serial_feature_extractor: Graph.SerialFeatureExtractor = Graph.SerialFeatureExtractor(self)
 
+        self.graph_duration = self._init_graph_duration()
+
+    def _init_graph_duration(self) -> float:
+        attrs = ["forward_times", "backward_times", "optimizer_times"]
+        min_, max_ = np.Inf, 0
+        for node in self.nodes:
+            for attr in attrs:
+                t = getattr(node, attr)
+                min_ = np.min((min_, *t))
+                max_ = np.max((max_, *t))
+        graph_duration = max_ - min_
+        return graph_duration
+
     @staticmethod
     def from_data(data: Optional[Dict] = None, dummy: bool = False) -> 'Graph':
         def generate_dummy():

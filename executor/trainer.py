@@ -61,33 +61,37 @@ class MTrainer(Trainer):
         self._memory_tracker.start()
 
         eval_dataloader = self.get_eval_dataloader(eval_dataset)
-        start_time = time.time()
+        if eval_dataset is None:
+            eval_dataset = getattr(eval_dataloader, "dataset")
 
-        eval_loop = self.evaluation_loop
-        output = eval_loop(
-            eval_dataloader,
-            description="Evaluation",
-            prediction_loss_only=True if self.compute_metrics is None else None,
-            ignore_keys=ignore_keys,
-            metric_key_prefix=metric_key_prefix,
-        )
+        model = self._wrap_model(self.model, training=False, dataloader=eval_dataloader)
 
-        total_batch_size = self.args.eval_batch_size * self.args.world_size
-        if f"{metric_key_prefix}_jit_compilation_time" in output.metrics:
-            start_time += output.metrics[f"{metric_key_prefix}_jit_compilation_time"]
-        output.metrics.update(
-            speed_metrics(
-                metric_key_prefix,
-                start_time,
-                num_samples=output.num_samples,
-                num_steps=math.ceil(output.num_samples / total_batch_size),
-            )
-        )
+        batch_size = self.args.eval_batch_size
 
-        self.log(output.metrics)
-        self._memory_tracker.stop_and_update_metrics(output.metrics)
+        logger.info(f"***** Running Evaluation *****")
+        logger.info(f"  Num examples = {self.num_examples(eval_dataloader)}")
+        logger.info(f"  Batch size = {batch_size}")
 
-        return output.metrics
+        model.eval()
+        loss_batches = list()
+        inputs_batches = list()
+        outputs_batches = list()
+        for step, inputs in enumerate(eval_dataloader):
+            loss, outputs, _ = self.prediction_step(model, inputs, False, ignore_keys=ignore_keys)
+            loss_batches.append(loss.item())
+            inputs_batches.append(inputs)
+            outputs_batches.append(outputs)
+        loss = np.mean(loss_batches)
+        full_graph_metrics = model.full_graph_metrics(inputs_batches, outputs_batches, eval_dataset)
+        metrics = {
+            "eval_loss": loss,
+            **full_graph_metrics
+        }
+
+        self.log(metrics)
+        self._memory_tracker.stop_and_update_metrics(metrics)
+
+        return metrics
 
     def evaluation_loop(
             self,
@@ -97,7 +101,6 @@ class MTrainer(Trainer):
             ignore_keys: Optional[List[str]] = None,
             metric_key_prefix: str = "eval",
     ) -> EvalLoopOutput:
-        args = self.args
         model = self._wrap_model(self.model, training=False, dataloader=dataloader)
 
         batch_size = self.args.eval_batch_size
@@ -107,13 +110,22 @@ class MTrainer(Trainer):
         logger.info(f"  Batch size = {batch_size}")
 
         model.eval()
-        # Do this before wrapping.
+        losses = None
+        inputs_batches = list()
+        outputs_batches = list()
+        for step, inputs in enumerate(dataloader):
+            loss, outputs, _ = self.prediction_step(model, inputs, prediction_loss_only, ignore_keys=ignore_keys)
+            losses = loss if losses is None else torch.cat((losses, loss), dim=0)
+            inputs_batches.append(inputs)
+            outputs_batches.append(outputs)
+
         eval_dataset = getattr(dataloader, "dataset", None)
 
-        all_preds = None
-        all_labels = None
+        full_graph_metrics = model.full_graph_metrics(inputs_batches, outputs_batches, eval_dataset)
+        loss = losses.mean().detach().cpu().numpy()
         metrics = {
-            "eval_loss": 0
+            "eval_loss": loss,
+            **full_graph_metrics
         }
         num_samples = 64
 
@@ -125,24 +137,18 @@ class MTrainer(Trainer):
             inputs: Dict,
             prediction_loss_only: bool,
             ignore_keys: Optional[List[str]] = None,
-    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
+    ):
         inputs = self._prepare_inputs(inputs)
         with torch.no_grad():
-            loss = None
             with self.compute_loss_context_manager():
-                outputs = model.loss(inputs)
-            if isinstance(outputs, dict):
-                logits = tuple(v for k, v in outputs.items() if k not in ignore_keys)
-            else:
-                logits = outputs
-            if self.args.past_index >= 0:
-                self._past = outputs[self.args.past_index - 1]
+                loss, outputs = model.loss(inputs)
         labels = nested_detach(inputs.get("labels"))
-        logits = nested_detach(logits)
-        if len(logits) == 1:
-            logits = logits[0]
+        outputs = nested_detach(outputs)
+        if len(outputs) == 1:
+            outputs = outputs[0]
+        loss = loss.mean().detach()
 
-        return loss, logits, labels
+        return loss, outputs, labels
 
 def nested_detach(tensors):
     if isinstance(tensors, (list, tuple)):

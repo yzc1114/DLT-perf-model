@@ -3,7 +3,6 @@ from itertools import product
 from typing import Tuple
 
 from transformers import TrainingArguments
-from transformers.trainer import EvalLoopOutput, EvalPrediction
 
 from config import TrainConfig, EvalConfig
 from data.dataset import DatasetFactory, MDataset, DatasetType
@@ -42,7 +41,7 @@ class Coordinator:
         for attr in product_attrs:
             attr_value = train_config.__getattribute__(attr)
             if not isinstance(attr_value, list):
-                product_attr_values.append((attr_value, ))
+                product_attr_values.append((attr_value,))
             else:
                 product_attr_values.append(tuple(attr_value))
         for p in product(*product_attr_values):
@@ -71,7 +70,7 @@ class Coordinator:
                 per_device_train_batch_size=train_config.batch_size,
                 per_device_eval_batch_size=train_config.batch_size,
                 logging_dir=train_logs_dir,
-                logging_steps=10,
+                logging_steps=train_config.logging_steps,
                 remove_unused_columns=False,
                 include_inputs_for_metrics=True,
                 evaluation_strategy=train_config.evaluation_strategy,

@@ -16,7 +16,8 @@ from .util import datasets_path, Normalizer
 
 
 class MDataset(ABC, Dataset):
-    def __init__(self, features: List[Dict], labels: List[Dict], normalization: Union[str, Callable] = "standard"):
+    def __init__(self, graphs_cache_key: str, features: List[Dict], labels: List[Dict], normalization: Union[str, Callable] = "standard"):
+        self.graphs_cache_key: str = graphs_cache_key
         self.features = features
         self.labels = labels
         self.normalizer: Optional[Normalizer] = None
@@ -214,7 +215,7 @@ class DatasetFactory:
             for i in range(len(X)):
                 data_idx_to_graph[next(counter)] = graph
 
-        dataset = OPDataset(op_X, op_Y, normalization)
+        dataset = OPDataset(graphs_cache_key, op_X, op_Y, normalization)
         return dataset
 
     @staticmethod
@@ -232,7 +233,7 @@ class DatasetFactory:
             # graph_Y.append(label.subgraph_durations)
             graph_Y.append(y)
             data_idx_to_graph[i] = graph
-        dataset = SubgraphDataset(graph_X, graph_Y, normalization)
+        dataset = SubgraphDataset(graphs_cache_key, graph_X, graph_Y, normalization)
         return dataset
 
     @staticmethod
@@ -255,5 +256,5 @@ class DatasetFactory:
             subgraph_Y.extend(Y)
             for i in range(len(X)):
                 data_idx_to_graph[next(counter)] = graph
-        dataset = SubgraphDataset(subgraph_X, subgraph_Y, normalization)
+        dataset = SubgraphDataset(graphs_cache_key, subgraph_X, subgraph_Y, normalization)
         return dataset
