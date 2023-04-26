@@ -5,8 +5,15 @@ import torch
 from torch.nn import MSELoss, ReLU
 
 import numpy as np
-from data import FeatureKeys, Graph
-from .base import MModule
+from data import FeatureKeys, Graph, MDataset
+from .base import MModule, MetricUtil
+from config import TrainConfig
+
+def MLP_init(train_config: TrainConfig, train_ds: MDataset):
+    sample_x_dict = train_ds.features[0]
+    sample_y_dict = train_ds.labels[0]
+    return MLPModel(input_dimension=len(sample_x_dict[FeatureKeys.X_OP_FEAT]),
+             output_dimension=len(sample_y_dict[FeatureKeys.Y_OP_FEAT][0]))
 
 
 class MLPModel(MModule):
@@ -64,17 +71,7 @@ class MLPModel(MModule):
             for i, graph_id in enumerate(graph_ids):
                 op_duration = op_durations[i].item()
                 graph_id_to_duration_pred[graph_id] += op_duration
-        y_hat, y = list(), list()
-        for graph in graphs:
-            pred = graph_id_to_duration_pred[graph.ID]
-            ground_truth = graph.graph_duration
-            y_hat.append(pred)
-            y.append(ground_truth)
-        y_hat = np.array(y_hat)
-        y = np.array(y)
-        MRE = np.sum(np.abs(y - y_hat) / y) / len(y)
-        RMSE = np.sqrt(np.sum(np.power(y - y_hat, 2)) / len(y))
+        duration_metrics = MetricUtil.compute_duration_metrics(graphs, graph_id_to_duration_pred)
         return {
-            "MRE": MRE,
-            "RMSE": RMSE
+            **duration_metrics
         }

@@ -6,9 +6,8 @@ from transformers import TrainingArguments
 
 from config import TrainConfig, EvalConfig
 from data.dataset import DatasetFactory, MDataset, DatasetType
-from models import ModelFactory, MModule, ModelType
+from trainers import ModelFactory, MModule, ModelType, MTrainer
 from objects import Environment
-from .trainer import MTrainer
 
 ckpts_dir = pathlib.Path(__file__).parent.parent / 'ckpts'
 logs_dir = pathlib.Path(__file__).parent.parent / 'logs'
@@ -16,8 +15,8 @@ logs_dir = pathlib.Path(__file__).parent.parent / 'logs'
 
 class Coordinator:
     @staticmethod
-    def _init_model(model_type: ModelType, train_ds: MDataset) -> MModule:
-        model = ModelFactory.create_model(model_type, train_ds)
+    def _init_model(train_config: TrainConfig, train_ds: MDataset) -> MModule:
+        model = ModelFactory.create_model(train_config, train_ds)
         return model
 
     @staticmethod
@@ -57,13 +56,14 @@ class Coordinator:
 
             def model_init():
                 model = Coordinator._init_model(
-                    train_config.model_type,
+                    train_config,
                     train_ds
                 )
                 return model
 
-            train_ckpts_dir = str(ckpts_dir / train_config.identifier())
-            train_logs_dir = str(logs_dir / train_config.identifier())
+            unique_path = pathlib.Path(train_config.dataset_environment_str) / train_config.model_type_str / train_config.identifier()
+            train_ckpts_dir = str(ckpts_dir / unique_path)
+            train_logs_dir = str(logs_dir / unique_path)
             training_args = TrainingArguments(
                 output_dir=train_ckpts_dir,
                 num_train_epochs=getattr(train_config, "num_train_epochs"),

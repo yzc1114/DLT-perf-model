@@ -42,13 +42,14 @@ class TrainConfig(DatasetConfigMixin):
         self.optimizer_cls_str = train_config_js.get("optimizer", "Adam")
         self.optimizer_cls = OptimizerType[train_config_js.get("optimizer", "Adam")].value
         self.learning_rate = train_config_js.get("learning_rate", 1e-3)
+        self.model_params = train_config_js.get("model_params", dict())
 
     def identifier(self) -> str:
         dataset_param_list = list()
         for k, v in self.dataset_params.items():
             dataset_param_list.append(f"{k}_{v}")
         dataset_param_str = "|".join(dataset_param_list)
-        return f"{self.dataset_environment_str}|{self.dataset_normalization}|{self.batch_size}|{self.learning_rate}|{dataset_param_str}"
+        return f"{self.dataset_normalization}|{self.batch_size}|{self.learning_rate}|{dataset_param_str}"
 
 
 class EvalConfig(DatasetConfigMixin):

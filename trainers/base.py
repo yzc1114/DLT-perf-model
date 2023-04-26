@@ -1,22 +1,56 @@
-import math
-import time
-from typing import Optional, List, Dict, Callable, Tuple
+from abc import ABC
+from abc import abstractmethod
 from typing import Mapping
+from typing import Optional, List, Dict, Callable
+from typing import Tuple, Any
 
 import numpy as np
 import torch
+import torch.nn
 from torch.optim.lr_scheduler import ConstantLR
-from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.dataset import Dataset
 from transformers import Trainer, TrainingArguments
-from transformers.trainer import EvalLoopOutput, EvalPrediction, speed_metrics, find_batch_size, \
-    nested_concat, nested_numpify, nested_truncate, denumpify_detensorize
+from transformers.trainer import EvalPrediction
 from transformers.trainer import logging
 
+from data import DatasetFactory
+from data import Graph
 from data.dataset import MDataset
-from models import MModule
 
 logger = logging.get_logger(__name__)
+
+
+class MetricUtil:
+    @staticmethod
+    def compute_duration_metrics(graphs: List[Graph], graph_id_to_duration_pred: Dict[str, float]) -> Dict:
+        y_hat, y = list(), list()
+        for graph in graphs:
+            pred = graph_id_to_duration_pred[graph.ID]
+            ground_truth = graph.graph_duration
+            y_hat.append(pred)
+            y.append(ground_truth)
+        y_hat = np.array(y_hat)
+        y = np.array(y)
+        MRE = np.sum(np.abs(y - y_hat) / y) / len(y)
+        RMSE = np.sqrt(np.sum(np.power(y - y_hat, 2)) / len(y))
+        return {
+            "MRE": MRE,
+            "RMSE": RMSE
+        }
+
+
+class MModule(torch.nn.Module, MetricUtil, ABC):
+    @abstractmethod
+    def loss(self, inputs) -> Tuple[torch.Tensor, Any]:
+        pass
+
+    def full_graph_metrics(self, inputs_batches: List[List], outputs_batches: List, eval_dataset: MDataset) -> Dict:
+        graphs = DatasetFactory.graphs_cache[eval_dataset.graphs_cache_key]
+        return self._full_graph_metrics(inputs_batches, outputs_batches, graphs)
+
+    @abstractmethod
+    def _full_graph_metrics(self, inputs_batches, outputs_batches, graphs) -> Dict:
+        pass
 
 
 class MTrainer(Trainer):
@@ -93,44 +127,6 @@ class MTrainer(Trainer):
 
         return metrics
 
-    def evaluation_loop(
-            self,
-            dataloader: DataLoader,
-            description: str,
-            prediction_loss_only: Optional[bool] = None,
-            ignore_keys: Optional[List[str]] = None,
-            metric_key_prefix: str = "eval",
-    ) -> EvalLoopOutput:
-        model = self._wrap_model(self.model, training=False, dataloader=dataloader)
-
-        batch_size = self.args.eval_batch_size
-
-        logger.info(f"***** Running {description} *****")
-        logger.info(f"  Num examples = {self.num_examples(dataloader)}")
-        logger.info(f"  Batch size = {batch_size}")
-
-        model.eval()
-        losses = None
-        inputs_batches = list()
-        outputs_batches = list()
-        for step, inputs in enumerate(dataloader):
-            loss, outputs, _ = self.prediction_step(model, inputs, prediction_loss_only, ignore_keys=ignore_keys)
-            losses = loss if losses is None else torch.cat((losses, loss), dim=0)
-            inputs_batches.append(inputs)
-            outputs_batches.append(outputs)
-
-        eval_dataset = getattr(dataloader, "dataset", None)
-
-        full_graph_metrics = model.full_graph_metrics(inputs_batches, outputs_batches, eval_dataset)
-        loss = losses.mean().detach().cpu().numpy()
-        metrics = {
-            "eval_loss": loss,
-            **full_graph_metrics
-        }
-        num_samples = 64
-
-        return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=num_samples)
-
     def prediction_step(
             self,
             model: MModule,
@@ -149,6 +145,7 @@ class MTrainer(Trainer):
         loss = loss.mean().detach()
 
         return loss, outputs, labels
+
 
 def nested_detach(tensors):
     if isinstance(tensors, (list, tuple)):
