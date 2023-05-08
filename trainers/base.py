@@ -53,7 +53,35 @@ class MModule(torch.nn.Module, MetricUtil, ABC):
         pass
 
 
-class MTrainer(Trainer):
+class MTrainer:
+    def __init__(self,
+                 model_init: Callable,
+                 args: TrainingArguments,
+                 train_dataset: MDataset,
+                 eval_dataset: MDataset,
+                 optimizer_cls,
+                 use_hugging_face: bool = True):
+        if use_hugging_face:
+            self.trainer = MHuggingFaceTrainer(model_init=model_init,
+                                               args=args,
+                                               train_dataset=train_dataset,
+                                               eval_dataset=eval_dataset,
+                                               optimizer_cls=optimizer_cls)
+        else:
+            self.model_init = model_init
+            self.args = args
+            self.train_dataset = train_dataset
+            self.eval_dataset = eval_dataset
+            self.optimizer_cls = optimizer_cls
+
+    def train(self):
+        self.trainer.train()
+
+    def evaluate(self):
+        self.trainer.evaluate()
+
+
+class MHuggingFaceTrainer(Trainer):
     def __init__(self,
                  model_init: Callable,
                  args: TrainingArguments,
@@ -64,7 +92,7 @@ class MTrainer(Trainer):
                          args=args,
                          train_dataset=train_dataset,
                          eval_dataset=eval_dataset,
-                         compute_metrics=MTrainer.compute_metrics,
+                         compute_metrics=MHuggingFaceTrainer.compute_metrics,
                          data_collator=MDataset.data_collator,
                          )
         self.model_init = model_init
@@ -115,7 +143,7 @@ class MTrainer(Trainer):
             loss_batches.append(loss.item())
             inputs_batches.append(inputs)
             outputs_batches.append(outputs)
-        loss = np.mean(loss_batches)
+        loss = float(np.mean(loss_batches))
         full_graph_metrics = model.full_graph_metrics(inputs_batches, outputs_batches, eval_dataset)
         metrics = {
             "eval_loss": loss,

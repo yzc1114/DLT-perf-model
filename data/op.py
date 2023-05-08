@@ -6,16 +6,17 @@ import numpy as np
 
 
 class OperatorType(Enum):
-    Add = 0
-    MatMul = 1
-    Conv1d = 2
-    Conv2d = 3
-    MaxPooling2d = 4
-    AvgPooling2d = 5
-    Relu = 6
-    Sigmoid = 7
-    Softmax = 8
-    Tanh = 9
+    Dummy = 0
+    Add = 1
+    MatMul = 2
+    Conv1d = 3
+    Conv2d = 4
+    MaxPooling2d = 5
+    AvgPooling2d = 6
+    Relu = 7
+    Sigmoid = 8
+    Softmax = 9
+    Tanh = 10
 
     @lru_cache(maxsize=None)
     def encode(self, method="one-hot") -> List:
@@ -36,7 +37,7 @@ class Operator:
                  weight_tensor_size: int,
                  output_tensor_size: int,
                  FLOPS: float,
-                 hyper_parameters: Optional[Tuple[Union[float, int]]]
+                 hyper_parameters: Optional[Tuple[Union[float, int]]] = None
                  ):
         self.operator_type: OperatorType = operator_type
         self.input_tensor_size: int = input_tensor_size
@@ -46,6 +47,10 @@ class Operator:
         self.hyper_parameters: Optional[Tuple[Union[float, int]]
         ] = hyper_parameters
 
+    @staticmethod
+    def dummy_op():
+        return Operator(OperatorType.Dummy, 0, 0, 0, 0)
+
     def to_feature_array(self, op_type_encoding="one-hot", mode="complex"):
         if mode == "complex":
             complex_feature_vector = [
@@ -54,8 +59,9 @@ class Operator:
                 self.weight_tensor_size,
                 self.output_tensor_size,
                 self.FLOPS,
-                *self.hyper_parameters
             ]
+            if self.hyper_parameters is not None:
+                complex_feature_vector.extend(self.hyper_parameters)
             return np.array(complex_feature_vector)
         elif mode == "simple":
             simple_feature_vector = [

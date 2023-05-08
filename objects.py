@@ -5,6 +5,15 @@ from typing import List
 from torch.optim import Adam, RMSprop, SGD
 
 
+class ModelType(Enum):
+    GBDT = 0
+    GNN = 1
+    MLP = 2
+    PerfNet = 3
+    RNN = 4
+    Transformer = 5
+
+
 class Environment:
     def __init__(self, gpu_type: 'GPUType', framework: str, cuda_version: str):
         self.gpu_type: GPUType = gpu_type

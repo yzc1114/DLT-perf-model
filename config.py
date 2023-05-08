@@ -1,34 +1,52 @@
 import json
 from typing import List
 
-from models import ModelType
-from objects import GPUType, Environment, DatasetType, OptimizerType
+from objects import GPUType, Environment, DatasetType, OptimizerType, ModelType
 
 
 class DatasetConfigMixin:
-    def __init__(self, config_js):
-        self.dataset_environment_str: str = config_js.get("dataset_environment_str", "RTX2080Ti_pytorch_cuda118")
+    def __init__(self, dataset_config_js, **kwargs):
+        super().__init__(**kwargs)
+        self.dataset_environment_str: str = dataset_config_js.get("dataset_environment_str",
+                                                                  "RTX2080Ti_pytorch_cuda118")
         self.dataset_gpu_type_str, self.dataset_framework, self.dataset_cuda_version = \
             self.dataset_environment_str.split("_")
         self.dataset_gpu_type: GPUType = GPUType[self.dataset_gpu_type_str]
         self.dataset_environment: Environment = Environment(gpu_type=self.dataset_gpu_type,
                                                             framework=self.dataset_framework,
                                                             cuda_version=self.dataset_cuda_version)
-        self.dataset_normalization = config_js.get("dataset_normalization", "Standard")
-        self.dataset_type_str = config_js.get("dataset_type", "OP")
+        self.dataset_normalization = dataset_config_js.get("dataset_normalization", "Standard")
+        self.dataset_type_str = dataset_config_js.get("dataset_type", "OP")
         self.dataset_type: DatasetType = DatasetType[self.dataset_type_str]
-        self.dataset_params = config_js.get("dataset_params", dict())
-        self.dataset_train_proportion = config_js.get("train_ds_proportion", 0.7)
-        self.dataset_seed = config_js.get("dataset_seed", 42)
-        self.dataset_dummy = config_js.get("dataset_dummy", False)
+        self.dataset_params = dataset_config_js.get("dataset_params", dict())
+        self.dataset_train_proportion = dataset_config_js.get("train_ds_proportion", 0.7)
+        self.dataset_seed = dataset_config_js.get("dataset_seed", 42)
+        self.dataset_dummy = dataset_config_js.get("dataset_dummy", False)
+
+    def identifier(self) -> str:
+        dataset_param_list = list()
+        for k, v in self.dataset_params.items():
+            dataset_param_list.append(f"{k}_{v}")
+        s = f"{self.dataset_normalization}"
+        if len(dataset_param_list) > 0:
+            dataset_param_str = "|".join(dataset_param_list)
+            s += f"|{dataset_param_str}"
+        return s
 
 
-class TrainConfig(DatasetConfigMixin):
-    def __init__(self, train_config_js):
-        super().__init__(train_config_js)
-        # training
-        self.model_type_str = train_config_js.get("model", "MLP")
+class ModelConfigMixin:
+    def __init__(self, model_config_js, **kwargs):
+        super().__init__(**kwargs)
+        self.model_type_str = model_config_js.get("model", "MLP")
         self.model_type: ModelType = ModelType[self.model_type_str]
+        self.model_params = model_config_js.get("model_params", dict())
+        self.resume_from_checkpoint = model_config_js.get("resume_from_checkpoint", None)
+
+
+class TrainConfig(DatasetConfigMixin, ModelConfigMixin):
+    def __init__(self, train_config_js):
+        super().__init__(dataset_config_js=train_config_js, model_config_js=train_config_js)
+        # training
         self.train_seed = train_config_js.get("train_seed", 42)
         self.dataset_sample_seed = train_config_js.get("dataset_sample_seed", 42)
         self.num_train_epochs = train_config_js.get("num_train_epochs", 100)
@@ -37,55 +55,33 @@ class TrainConfig(DatasetConfigMixin):
         self.evaluation_strategy = train_config_js.get("evaluation_strategy", "epoch")
         self.eval_steps = train_config_js.get("eval_steps", 500)
         self.load_best_model_at_end = train_config_js.get("load_best_model_at_end", True)
-        self.resume_from_checkpoint = train_config_js.get("resume_from_checkpoint", None)
         self.save_strategy = train_config_js.get("save_strategy", "epoch")
         self.optimizer_cls_str = train_config_js.get("optimizer", "Adam")
         self.optimizer_cls = OptimizerType[train_config_js.get("optimizer", "Adam")].value
         self.learning_rate = train_config_js.get("learning_rate", 1e-3)
-        self.model_params = train_config_js.get("model_params", dict())
-
-    def identifier(self) -> str:
-        dataset_param_list = list()
-        for k, v in self.dataset_params.items():
-            dataset_param_list.append(f"{k}_{v}")
-        dataset_param_str = "|".join(dataset_param_list)
-        return f"{self.dataset_normalization}|{self.batch_size}|{self.learning_rate}|{dataset_param_str}"
 
 
-class EvalConfig(DatasetConfigMixin):
+class EvalConfig(DatasetConfigMixin, ModelConfigMixin):
     def __init__(self, eval_config_js):
-        super().__init__(eval_config_js)
-        # evaluating
-        self.model_type_str = eval_config_js.get("model_type_str", "MLP")
-        self.model_type: ModelType = ModelType[self.model_type_str]
-
-    def identifier(self) -> str:
-        dataset_param_list = list()
-        for k, v in self.dataset_params.items():
-            dataset_param_list.append(f"{k}_{v}")
-        dataset_param_str = "|".join(dataset_param_list)
-        return f"{self.dataset_environment_str}|{self.dataset_normalization}|{dataset_param_str}"
+        super().__init__(model_config_js=eval_config_js, dataset_config_js=eval_config_js)
+        self.batch_size: int = eval_config_js.get("batch_size", 64)
 
 
 class Config:
     def __init__(self, config_file):
         with open(config_file) as f:
             self.config_js = json.load(f)
-        self.config_type = self.config_js["config_type"]
 
         def load_configs(config_type):
             config_cls = {
                 "train": TrainConfig,
                 "eval": EvalConfig
             }
-            assert config_type in self.config_js
             return [config_cls[config_type](sub_config_js) for sub_config_js in self.config_js[config_type]]
 
         self.train_configs: List[TrainConfig] = list()
         self.eval_configs: List[EvalConfig] = list()
-        if self.config_type == "train":
-            self.train_configs = load_configs(self.config_type)
-        elif self.config_type == "eval":
-            self.eval_configs = load_configs(self.config_type)
-        else:
-            raise ValueError(f"Invalid config type: {self.config_type}.")
+        if "train" in self.config_js:
+            self.train_configs = load_configs("train")
+        if "eval" in self.config_js:
+            self.eval_configs = load_configs("eval")

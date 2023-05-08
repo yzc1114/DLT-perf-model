@@ -2,7 +2,6 @@ import pathlib
 from typing import List, Union, Dict
 
 import numpy as np
-from sklearn import preprocessing
 
 datasets_path = str(pathlib.Path(__file__) / "datasets")
 
@@ -14,37 +13,36 @@ class Normalizer:
         self.x_scaler_dict = x_scaler_dict
         self.y_scaler_dict = y_scaler_dict
 
-    class _Impl:
-        def __init__(self, x_scaler, y_scaler):
-            self.x_scaler = x_scaler
-            self.y_scaler = y_scaler
-
-        def _normalize(self, x=None, y=None):
-            def n(v, scaler):
-                if v is None:
-                    return None
-                return scaler.transform(x)
-
-            return n(x, self.x_scaler), n(y, self.y_scaler)
-
-        def __call__(self, x, y):
-            result = self._normalize(x, y)
-            result = tuple(filter(lambda r: r is not None, result))
-            if len(result) == 1:
-                return result[0]
-            return result
-
-    def __call__(self, x: Union[Dict, np.ndarray], y: Union[Dict, np.ndarray]):
+    def __call__(self, x: Union[Dict, np.ndarray] | None=None, y: Union[Dict, np.ndarray] | None=None, inversion: bool = False):
         result = list()
 
+        def call_scaler(scaler, value):
+            if scaler is None:
+                return value
+            if isinstance(value, float):
+                value = np.array([value])
+            if isinstance(value, list) or isinstance(value, tuple):
+                value = np.array(value)
+            transform_func = scaler.transform if not inversion else scaler.inverse_transform
+            if len(value.shape) == 1:
+                value = value.reshape(1, -1)
+                return transform_func(value)[0]
+            else:
+                return transform_func(value)
+
         def n(data, scaler_dict):
+            if data is None:
+                return
             if isinstance(data, dict):
                 normed = dict()
                 for k, v in data.items():
-                    normed[k] = scaler_dict[k](v)
+                    scaler = scaler_dict[k]
+                    v_ = call_scaler(scaler, v)
+                    normed[k] = v_
                 result.append(normed)
             elif isinstance(data, np.ndarray):
-                result.append(scaler_dict[Normalizer.DefaultKey](data))
+                scaler = scaler_dict[Normalizer.DefaultKey]
+                result.append(call_scaler(scaler, data))
             else:
                 raise ValueError("Invalid data type. Data must be a dict or a np.ndarray.")
 
@@ -83,12 +81,19 @@ class Normalizer:
     #     return Normalizer(x_scaler_dict, y_scaler_dict)
 
 
-def pad_np_vectors(v: List[np.array]):
-    max_size = np.max(f.size for f in v)
+def pad_np_vectors(v: List[np.ndarray] | np.ndarray, max_size=None):
+    if max_size is None:
+        if isinstance(v, np.ndarray):
+            raise ValueError("maxsize must be specified is v is np.ndarray")
+        if isinstance(v, list):
+            max_size = np.amax([f.size for f in v])
+
     nv = list()
     for l in v:
         if l.size < max_size:
             nv.append(
                 np.pad(l, (0, max_size - l.size))
             )
+        else:
+            nv.append(l)
     return nv

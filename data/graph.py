@@ -1,8 +1,9 @@
+import math
 import random
 import string
 from abc import ABC, abstractmethod
 from collections import namedtuple
-from typing import List, Optional, Dict, Tuple, Any
+from typing import List, Optional, Dict, Tuple
 
 import numpy as np
 
@@ -25,6 +26,7 @@ class FeatureKeys:
     Y_SUBGRAPH_FEAT = f"y_subgraph_{FEAT_SUFFIX}"
     Y_OP_FEAT = f"y_op_{FEAT_SUFFIX}"
 
+
 class GraphNode:
     def __init__(self,
                  node_id: int,
@@ -40,6 +42,11 @@ class GraphNode:
         self.optimizer_times: Tuple[float, float] = optimizer_times
         self.neighbors: List[GraphNode] = list(
         ) if neighbors is None else neighbors
+
+    @staticmethod
+    def dummy_node():
+        return GraphNode(node_id=-1, op=Operator.dummy_op(), forward_times=(0, 0), backward_times=(0, 0),
+                         optimizer_times=(0, 0))
 
     def add_neighbors(self, *neighbors: 'GraphNode'):
         self.neighbors.extend(neighbors)
@@ -91,39 +98,42 @@ class Graph:
         return graph_duration
 
     @staticmethod
-    def from_data(data: Optional[Dict] = None, dummy: bool = False) -> 'Graph':
+    def from_data(data: Optional[Dict] = None, dummy: bool = False, seed: int = 0) -> 'Graph':
+        rand = random.Random(seed)
+
         def generate_dummy():
-            random_graph_id = ''.join(random.choices(
+            random_graph_id = ''.join(rand.choices(
                 string.ascii_letters + string.digits, k=10))
             gpu_type = GPUType.RTX2080Ti
             batch_size = 64
             optimizer_type = OptimizerType.Adam
             operator_types = [OperatorType.Add,
                               OperatorType.Conv2d, OperatorType.Relu]
-            args = {
-                'input_tensor_size': random.randint(1, 10),
-                'weight_tensor_size': random.randint(1, 10),
-                'output_tensor_size': random.randint(1, 10),
-                'FLOPS': random.uniform(0, 1),
-                'hyper_parameters': (random.uniform(0, 1),)
-            }
 
-            num_nodes = random.randint(10, 100)
+            num_nodes = rand.randint(10, 100)
             nodes = list()
             for i in range(num_nodes):
-                op_type = random.choice(operator_types)
+                op_type = rand.choice(operator_types)
+                hyper_param_cnt = rand.randint(0, 10)
+                args = {
+                    'input_tensor_size': rand.randint(1, 10),
+                    'weight_tensor_size': rand.randint(1, 10),
+                    'output_tensor_size': rand.randint(1, 10),
+                    'FLOPS': rand.uniform(0, 1),
+                    'hyper_parameters': tuple(rand.uniform(0, 1) for i in range(hyper_param_cnt))
+                }
                 op = Operator(op_type, **args)
                 last_node = None if len(nodes) == 0 else nodes[-1]
 
                 def added_times(last_node_, attr):
                     if last_node_ is None:
-                        start_time = random.uniform(0, 1)
-                        duration = random.uniform(0, 1)
+                        start_time = rand.uniform(0, 1)
+                        duration = rand.uniform(0, 1)
                         return start_time, start_time + duration
 
                     times = getattr(last_node_, attr)
-                    start_time = times[-1] + random.uniform(0, 1)
-                    duration = random.uniform(0, 1)
+                    start_time = times[-1] + rand.uniform(0, 1)
+                    duration = rand.uniform(0, 1)
                     return start_time, start_time + duration
 
                 current_node = GraphNode(i,
@@ -148,17 +158,21 @@ class Graph:
             raise ValueError("Invalid subgraph_count and subgraph_node_size, cannot be None simultaneously.")
         if subgraph_count is not None:
             subgraph_node_size = len(self.nodes) // subgraph_count
+        elif subgraph_node_size is not None:
+            subgraph_count = math.ceil(float(len(self.nodes)) / subgraph_node_size)
         subgraphs = list()
         node_id_to_group_idx = dict()
-        for i in range(subgraph_node_size):
+        for i in range(subgraph_count):
             subgraph_nodes = self.nodes[i * subgraph_node_size: (i + 1) * subgraph_node_size]
             subgraphs.append(subgraph_nodes)
             for node in subgraph_nodes:
                 node_id_to_group_idx[node.node_id] = i
+            while len(subgraph_nodes) < subgraph_node_size:
+                subgraph_nodes.append(GraphNode.dummy_node())
         return subgraphs, node_id_to_group_idx
 
     @staticmethod
-    def _subgraph_label(subgraph: List[GraphNode]) -> Dict:
+    def _subgraph_label(subgraph: List[GraphNode], duration_summed: bool=False) -> Dict:
         attrs = ["forward_times", "backward_times", "optimizer_times"]
         subgraph_durations = DurationTuple(*(
             abs(getattr(subgraph[0], attr)[0] - getattr(subgraph[-1], attr)[1])
@@ -171,6 +185,7 @@ class Graph:
                 for attr in attrs
             ))
             node_durations.append(node_duration_label)
+        subgraph_durations = (np.sum(subgraph_durations),) if duration_summed else subgraph_durations
         return {
             FeatureKeys.Y_SUBGRAPH_FEAT: subgraph_durations,
             FeatureKeys.Y_OP_FEAT: node_durations
@@ -189,7 +204,7 @@ class Graph:
             y[FeatureKeys.Y_ID] = idx
             y[FeatureKeys.Y_GRAPH_ID] = self.graph.ID
 
-        def node_features(self, op_type_encoding="one-hot", mode="complex", encode_hyper_to_node: bool = True) -> Tuple[
+        def node_features(self, op_type_encoding="one-hot", mode="complex", encode_hyper_to_node: bool = True, **kwargs) -> Tuple[
             List[Dict], List[Dict]]:
             graph = self.graph
             X, Y = list(), list()
@@ -201,30 +216,31 @@ class Graph:
                 x = {
                     FeatureKeys.X_OP_FEAT: x_op_feature
                 }
-                y = graph._subgraph_label([node])
+                y = graph._subgraph_label([node], duration_summed=kwargs.get("duration_summed", False))
                 self._add_ID(x, y, i)
                 X.append(x)
                 Y.append(y)
             return X, Y
 
-        def subgraph_features(self, subgraph_node_size: int) -> Tuple[List[Dict], List[Dict]]:
+        def subgraph_features(self, subgraph_node_size: int, **kwargs) -> Tuple[List[Dict], List[Dict]]:
+            duration_summed = kwargs.get("duration_summed", False)
             graph = self.graph
             subgraphs, _ = graph.subgraphs(subgraph_node_size=subgraph_node_size)
             X, Y = list(), list()
 
             for i, subgraph in enumerate(subgraphs):
-                x, y = self._subgraph_feature(subgraph)
+                x, y = self._subgraph_feature(subgraph, duration_summed=duration_summed)
                 self._add_ID(x, y, i)
                 X.append(x)
                 Y.append(y)
             return X, Y
 
-        def full_graph_feature(self, *args) -> Tuple[Dict, Dict]:
-            X, Y = self.subgraph_features(len(self.graph.nodes))
+        def full_graph_feature(self, **kwargs) -> Tuple[Dict, Dict]:
+            X, Y = self.subgraph_features(len(self.graph.nodes), **kwargs)
             return X[0], Y[0]
 
         @abstractmethod
-        def _subgraph_feature(self, nodes: List[GraphNode]) -> Tuple[Dict, Dict]:
+        def _subgraph_feature(self, nodes: List[GraphNode], duration_summed: bool=False) -> Tuple[Dict, Dict]:
             pass
 
     class GNNBasedFeatureExtractor(FeatureExtractor):
@@ -232,7 +248,7 @@ class Graph:
             super().__init__(graph)
 
         def _postprocess_matrix(self, feature_matrix, adjacency_matrix) -> Tuple[np.ndarray, np.ndarray]:
-            optimizer_node_feature = self.graph._optimizer_feature()
+            optimizer_node_feature = np.array(self.graph._optimizer_feature())
             feature_matrix.append(optimizer_node_feature)
             adjacency_matrix.append(np.zeros(len(adjacency_matrix[0])))
 
@@ -242,7 +258,7 @@ class Graph:
             adjacency_matrix = np.array(adjacency_matrix)
             return feature_matrix, adjacency_matrix
 
-        def _subgraph_feature(self, nodes: List[GraphNode]) -> Tuple[Dict[str, np.ndarray], Dict]:
+        def _subgraph_feature(self, nodes: List[GraphNode], duration_summed: bool=False) -> Tuple[Dict[str, np.ndarray], Dict]:
             feature_matrix = list()
             for node in nodes:
                 feature_matrix.append(node.op.to_feature_array(mode="complex"))
@@ -260,7 +276,7 @@ class Graph:
                 FeatureKeys.X_SUBGRAPH_ADJACENCY_FEAT: adjacency_matrix
             }, labels
 
-        def full_graph_feature(self, subgraph_count: int) -> Tuple[Dict[str, np.ndarray], Dict]:
+        def full_graph_feature(self, subgraph_count: int, duration_summed: bool=False) -> Tuple[Dict[str, np.ndarray], Dict]:
             graph = self.graph
             subgraph_node_size = len(graph.nodes) // subgraph_count
             subgraphs = list()
@@ -296,7 +312,7 @@ class Graph:
                 adjacency_matrix.append(vector)
 
             feature_matrix, adjacency_matrix = self._postprocess_matrix(feature_matrix, adjacency_matrix)
-            labels = Graph._subgraph_label(graph.nodes)
+            labels = Graph._subgraph_label(graph.nodes, duration_summed=duration_summed)
             return {
                 FeatureKeys.X_SUBGRAPH_FEAT: feature_matrix,
                 FeatureKeys.X_SUBGRAPH_ADJACENCY_FEAT: adjacency_matrix
@@ -306,18 +322,18 @@ class Graph:
         def __init__(self, graph: 'Graph'):
             super().__init__(graph)
 
-        def _subgraph_feature(self, nodes: List[GraphNode]) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
+        def _subgraph_feature(self, nodes: List[GraphNode], duration_summed: bool=False) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
             feature_matrix = list()
             for node in nodes:
                 feature = node.op.to_feature_array(mode="complex")
                 feature = np.array(feature)
                 feature_matrix.append(feature)
 
-            optimizer_node_feature = self.graph._optimizer_feature()
+            optimizer_node_feature = np.array(self.graph._optimizer_feature())
             feature_matrix.append(optimizer_node_feature)
             feature_matrix = pad_np_vectors(feature_matrix)
             feature_matrix = np.array(feature_matrix)
-            labels = self.graph._subgraph_label(nodes)
+            labels = self.graph._subgraph_label(nodes, duration_summed=duration_summed)
             return {
                 FeatureKeys.X_SUBGRAPH_FEAT: feature_matrix
             }, labels

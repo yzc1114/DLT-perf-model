@@ -4,10 +4,10 @@ from typing import Tuple
 
 from transformers import TrainingArguments
 
-from config import TrainConfig, EvalConfig
+from config import TrainConfig, EvalConfig, ModelConfigMixin
 from data.dataset import DatasetFactory, MDataset, DatasetType
-from trainers import ModelFactory, MModule, ModelType, MTrainer
 from objects import Environment
+from trainers import ModelFactory, MModule, MTrainer, TrainerFactory
 
 ckpts_dir = pathlib.Path(__file__).parent.parent / 'ckpts'
 logs_dir = pathlib.Path(__file__).parent.parent / 'logs'
@@ -15,8 +15,8 @@ logs_dir = pathlib.Path(__file__).parent.parent / 'logs'
 
 class Coordinator:
     @staticmethod
-    def _init_model(train_config: TrainConfig, train_ds: MDataset) -> MModule:
-        model = ModelFactory.create_model(train_config, train_ds)
+    def _init_model(model_config: ModelConfigMixin, train_ds: MDataset) -> MModule:
+        model = ModelFactory.create_model(model_config, train_ds)
         return model
 
     @staticmethod
@@ -47,62 +47,63 @@ class Coordinator:
             dataset_normalization = p[product_attrs.index("dataset_normalization")]
             dataset_params = p[product_attrs.index("dataset_params")]
 
-            train_ds, eval_ds = Coordinator._init_dataset(
-                dataset_environment=train_config.dataset_environment,
-                dataset_type=train_config.dataset_type,
-                dataset_normalization=dataset_normalization,
-                dataset_dummy=train_config.dataset_dummy,
-                **dataset_params)
-
-            def model_init():
-                model = Coordinator._init_model(
-                    train_config,
-                    train_ds
-                )
-                return model
-
-            unique_path = pathlib.Path(train_config.dataset_environment_str) / train_config.model_type_str / train_config.identifier()
-            train_ckpts_dir = str(ckpts_dir / unique_path)
-            train_logs_dir = str(logs_dir / unique_path)
-            training_args = TrainingArguments(
-                output_dir=train_ckpts_dir,
-                num_train_epochs=getattr(train_config, "num_train_epochs"),
-                per_device_train_batch_size=train_config.batch_size,
-                per_device_eval_batch_size=train_config.batch_size,
-                logging_dir=train_logs_dir,
-                logging_steps=train_config.logging_steps,
-                remove_unused_columns=False,
-                include_inputs_for_metrics=True,
-                evaluation_strategy=train_config.evaluation_strategy,
-                load_best_model_at_end=train_config.load_best_model_at_end,
-                resume_from_checkpoint=train_config.resume_from_checkpoint,
-                save_strategy=train_config.save_strategy,
-                learning_rate=train_config.learning_rate
-            )
-
-            trainer = MTrainer(
-                model_init=model_init,
-                args=training_args,
-                train_dataset=train_ds,
-                eval_dataset=eval_ds,
-                optimizer_cls=train_config.optimizer_cls,
-            )
+            trainer = Coordinator.create_trainer(train_config, dataset_normalization, dataset_params)
 
             trainer.train()
 
     @staticmethod
-    def eval(eval_config: EvalConfig):
+    def create_trainer(conf, dataset_normalization=None, dataset_params=None) -> MTrainer:
+        if dataset_normalization is None:
+            dataset_normalization = conf.dataset_normalization
+        if dataset_params is None:
+            dataset_params = conf.dataset_params
         train_ds, eval_ds = Coordinator._init_dataset(
-            dataset_environment=eval_config.dataset_environment,
-            dataset_type=eval_config.dataset_type,
-            remove_unused_columns=False,
-            dataset_normalization=eval_config.dataset_normalization,
-            dataset_dummy=eval_config.dataset_dummy,
-            **eval_config.dataset_params)
+            dataset_environment=conf.dataset_environment,
+            dataset_type=conf.dataset_type,
+            dataset_normalization=dataset_normalization,
+            dataset_dummy=conf.dataset_dummy,
+            **dataset_params)
 
-        model = Coordinator._init_model(
-            eval_config.model_type,
-            train_ds
+        def model_init():
+            model = Coordinator._init_model(
+                conf,
+                train_ds
+            )
+            return model
+
+        unique_path = pathlib.Path(
+            conf.dataset_environment_str) / conf.model_type_str / conf.identifier()
+        train_ckpts_dir = str(ckpts_dir / unique_path)
+        train_logs_dir = str(logs_dir / unique_path)
+        training_args = TrainingArguments(
+            output_dir=train_ckpts_dir,
+            num_train_epochs=getattr(conf, "num_train_epochs", 10),
+            per_device_train_batch_size=conf.batch_size,
+            per_device_eval_batch_size=conf.batch_size,
+            logging_dir=train_logs_dir,
+            logging_steps=getattr(conf, "logging_steps", 10),
+            remove_unused_columns=False,
+            include_inputs_for_metrics=True,
+            evaluation_strategy=getattr(conf, "evaluation_strategy", "epoch"),
+            load_best_model_at_end=getattr(conf, "load_best_model_at_end", True),
+            resume_from_checkpoint=getattr(conf, "resume_from_checkpoint", None),
+            save_strategy=getattr(conf, "save_strategy", "epoch"),
+            learning_rate=getattr(conf, "learning_rate", 1e-3)
         )
-        # TODO
-        raise NotImplementedError()
+
+        trainer = TrainerFactory.create_trainer(
+            model_type=conf.model_type,
+            model_init=model_init,
+            args=training_args,
+            train_dataset=train_ds,
+            eval_dataset=eval_ds,
+            optimizer_cls=getattr(conf, "optimizer_cls", None),
+        )
+
+        return trainer
+
+    @staticmethod
+    def eval(eval_config: EvalConfig):
+        trainer = Coordinator.create_trainer(eval_config)
+        metrics = trainer.evaluate()
+        print(metrics)

@@ -1,19 +1,20 @@
 from collections import defaultdict
-from typing import List, Dict
+from typing import List, Dict, Callable
 
 import torch
 from torch.nn import MSELoss, ReLU
+from transformers import TrainingArguments
 
-import numpy as np
+from config import ModelConfigMixin
 from data import FeatureKeys, Graph, MDataset
-from .base import MModule, MetricUtil
-from config import TrainConfig
+from .base import MModule, MetricUtil, MTrainer
 
-def MLP_init(train_config: TrainConfig, train_ds: MDataset):
+
+def MLP_init(model_config: ModelConfigMixin, train_ds: MDataset):
     sample_x_dict = train_ds.features[0]
     sample_y_dict = train_ds.labels[0]
     return MLPModel(input_dimension=len(sample_x_dict[FeatureKeys.X_OP_FEAT]),
-             output_dimension=len(sample_y_dict[FeatureKeys.Y_OP_FEAT][0]))
+                    output_dimension=len(sample_y_dict[FeatureKeys.Y_OP_FEAT][0]))
 
 
 class MLPModel(MModule):
@@ -75,3 +76,17 @@ class MLPModel(MModule):
         return {
             **duration_metrics
         }
+
+
+class MLPTrainer(MTrainer):
+    def __init__(self,
+                 model_init: Callable,
+                 args: TrainingArguments,
+                 train_dataset: MDataset,
+                 eval_dataset: MDataset,
+                 optimizer_cls):
+        super().__init__(model_init,
+                         args,
+                         train_dataset,
+                         eval_dataset,
+                         optimizer_cls)
