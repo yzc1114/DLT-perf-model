@@ -7,7 +7,7 @@ from transformers import TrainingArguments
 
 from config import ModelConfigMixin
 from data import FeatureKeys, Graph, MDataset
-from .base import MModule, MetricUtil, MTrainer
+from .base import MModule, MetricUtil, MTrainer, FullGraphMetricMixin, LossUtilMixin
 
 
 def MLP_init(model_config: ModelConfigMixin, train_ds: MDataset):
@@ -17,8 +17,7 @@ def MLP_init(model_config: ModelConfigMixin, train_ds: MDataset):
                     output_dimension=len(sample_y_dict[FeatureKeys.Y_OP_FEAT][0]))
 
 
-class MLPModel(MModule):
-    DurationDim = 0, 3
+class MLPModel(MModule, FullGraphMetricMixin, LossUtilMixin):
 
     @staticmethod
     def dimension_len(t):
@@ -26,7 +25,6 @@ class MLPModel(MModule):
 
     def __init__(self, input_dimension, output_dimension, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        assert output_dimension == self.dimension_len(self.DurationDim)
         self.input = torch.nn.Linear(input_dimension, 512)
         self.relu1 = ReLU()
         self.dense1 = torch.nn.Linear(512, 128)
@@ -47,46 +45,25 @@ class MLPModel(MModule):
         return Y
 
     def loss(self, inputs):
-        labels = inputs["labels"]
-        # here, subgraph equals to op since a subgraph only contains one op
-        y_op_features = labels[FeatureKeys.Y_SUBGRAPH_FEAT]
-        x_op_features = inputs[FeatureKeys.X_OP_FEAT]
-        outputs = self(x_op_features)
-        loss = self.loss_fn(outputs, y_op_features)
-        return loss, outputs
+        return LossUtilMixin.op_based_loss(self, self.loss_fn, inputs)
 
     def _full_graph_metrics(self, inputs_batches: List[Dict], outputs_batches: List, graphs: List[Graph]) -> Dict:
-        assert len(inputs_batches) == len(outputs_batches)
-        batches_len = len(inputs_batches)
-
-        def compute_op_durations(outputs_):
-            durations = outputs_[:, self.DurationDim[0]:self.DurationDim[1]].sum(dim=1)
-            return durations
-
-        graph_id_to_duration_pred = defaultdict(int)
-        for idx in range(batches_len):
-            inputs = inputs_batches[idx]
-            outputs = outputs_batches[idx]
-            graph_ids = inputs[FeatureKeys.X_GRAPH_ID]
-            op_durations = compute_op_durations(outputs)
-            for i, graph_id in enumerate(graph_ids):
-                op_duration = op_durations[i].item()
-                graph_id_to_duration_pred[graph_id] += op_duration
-        duration_metrics = MetricUtil.compute_duration_metrics(graphs, graph_id_to_duration_pred)
-        return {
-            **duration_metrics
-        }
+        return super()._op_based_full_graph_metrics(inputs_batches, outputs_batches, graphs)
 
 
 class MLPTrainer(MTrainer):
     def __init__(self,
                  model_init: Callable,
+                 model_params: Dict,
                  args: TrainingArguments,
                  train_dataset: MDataset,
                  eval_dataset: MDataset,
-                 optimizer_cls):
+                 optimizer_cls,
+                 resume_from_ckpt):
+        self.model_params = model_params
         super().__init__(model_init,
                          args,
                          train_dataset,
                          eval_dataset,
-                         optimizer_cls)
+                         optimizer_cls,
+                         resume_from_ckpt)

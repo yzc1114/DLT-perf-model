@@ -40,7 +40,7 @@ class ModelConfigMixin:
         self.model_type_str = model_config_js.get("model", "MLP")
         self.model_type: ModelType = ModelType[self.model_type_str]
         self.model_params = model_config_js.get("model_params", dict())
-        self.resume_from_checkpoint = model_config_js.get("resume_from_checkpoint", None)
+        self.resume_from_ckpt = model_config_js.get("resume_from_ckpt", None)
 
 
 class TrainConfig(DatasetConfigMixin, ModelConfigMixin):

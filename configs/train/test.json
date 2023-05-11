@@ -1,12 +1,12 @@
 {
   "train": [
     {
-      "model": "GBDT",
+      "model": "PerfNet",
       "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
       "dataset_normalization": "Standard",
       "dataset_type": "OP",
       "dataset_params": {
-        "duration_summed": true
+        "duration_summed": false
       },
       "dataset_dummy": true,
       "batch_size": 64,
@@ -17,16 +17,16 @@
   ],
   "eval": [
     {
-      "model": "GBDT",
+      "model": "MLP",
       "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
       "dataset_normalization": "Standard",
       "dataset_type": "OP",
       "dataset_params": {
-        "duration_summed": true
+        "duration_summed": false
       },
       "dataset_dummy": true,
       "batch_size": 64,
-      "resume_from_checkpoint": "checkpoint_0.99.pickle"
+      "resume_from_ckpt": "checkpoint-664"
     }
   ]
 }

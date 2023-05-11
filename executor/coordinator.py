@@ -1,3 +1,4 @@
+import logging
 import pathlib
 from itertools import product
 from typing import Tuple
@@ -86,18 +87,21 @@ class Coordinator:
             include_inputs_for_metrics=True,
             evaluation_strategy=getattr(conf, "evaluation_strategy", "epoch"),
             load_best_model_at_end=getattr(conf, "load_best_model_at_end", True),
-            resume_from_checkpoint=getattr(conf, "resume_from_checkpoint", None),
             save_strategy=getattr(conf, "save_strategy", "epoch"),
             learning_rate=getattr(conf, "learning_rate", 1e-3)
         )
 
+        model_params = getattr(conf, "model_params", dict())
+
         trainer = TrainerFactory.create_trainer(
             model_type=conf.model_type,
+            model_params=model_params,
             model_init=model_init,
             args=training_args,
             train_dataset=train_ds,
             eval_dataset=eval_ds,
             optimizer_cls=getattr(conf, "optimizer_cls", None),
+            resume_from_ckpt=getattr(conf, "resume_from_ckpt", 10),
         )
 
         return trainer
@@ -106,4 +110,4 @@ class Coordinator:
     def eval(eval_config: EvalConfig):
         trainer = Coordinator.create_trainer(eval_config)
         metrics = trainer.evaluate()
-        print(metrics)
+        logging.info(metrics)

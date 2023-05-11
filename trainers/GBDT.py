@@ -30,11 +30,20 @@ def GBDT_init(model_config: ModelConfigMixin, train_ds: MDataset):
 class GBDTTrainer(MTrainer):
     def __init__(self,
                  model_init: Callable,
+                 model_params: Dict,
                  args: TrainingArguments,
                  train_dataset: MDataset,
                  eval_dataset: MDataset,
-                 optimizer_cls):
-        super().__init__(model_init, args, train_dataset, eval_dataset, optimizer_cls, use_hugging_face=False)
+                 optimizer_cls,
+                 resume_from_ckpt):
+        self.model_params: Dict = model_params
+        super().__init__(model_init,
+                         args,
+                         train_dataset,
+                         eval_dataset,
+                         optimizer_cls,
+                         resume_from_ckpt,
+                         use_hugging_face=False)
         self.reg = None
 
     @staticmethod
@@ -70,8 +79,8 @@ class GBDTTrainer(MTrainer):
             with open(pathlib.Path(self.args.output_dir, _filename), "rb") as f:
                 return pickle.load(f)
 
-        if self.args.resume_from_checkpoint is not None:
-            return load(self.args.resume_from_checkpoint)
+        if self.resume_from_ckpt is not None:
+            return load(self.resume_from_ckpt)
         filenames = os.listdir(self.args.output_dir)
         min_, best_filename = np.inf, None
         for filename in filenames:
