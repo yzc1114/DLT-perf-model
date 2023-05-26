@@ -5,7 +5,7 @@ from abc import abstractmethod
 from collections import defaultdict
 from typing import Mapping
 from typing import Optional, List, Dict, Callable
-from typing import Tuple, Any, Union
+from typing import Union
 
 import numpy as np
 import torch
@@ -87,8 +87,12 @@ class MModule(torch.nn.Module, MetricUtil, ABC):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+    # @abstractmethod
+    # def loss(self, inputs) -> Tuple[torch.Tensor, Any]:
+    #     pass
+
     @abstractmethod
-    def loss(self, inputs) -> Tuple[torch.Tensor, Any]:
+    def compute_loss(self, outputs, Y) -> torch.Tensor:
         pass
 
     def full_graph_metrics(self, inputs_batches: List[List], outputs_batches: List, eval_dataset: MDataset) -> Dict:

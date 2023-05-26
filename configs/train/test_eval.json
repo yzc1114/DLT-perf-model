@@ -1,5 +1,7 @@
 {
   "train": [
+  ],
+  "eval": [
     {
       "model": "MLP",
       "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
@@ -10,12 +12,7 @@
       },
       "dataset_dummy": true,
       "batch_size": 64,
-      "learning_rate": 1e-3,
-      "epochs": 100,
-      "optimizer": "Adam"
+      "resume_from_ckpt": "MLP/2023-05-26_17-32-28/ckpt_8000_0.09752502292394638.pth"
     }
-  ],
-  "eval": [
-
   ]
 }

@@ -2,7 +2,7 @@ import argparse
 import pathlib
 
 from config import Config
-from executor import Coordinator
+from executor import Coordinator, MLP_OPBasedExecutor
 from logger import init_logging
 import logging
 init_logging()
@@ -31,11 +31,13 @@ def main():
     if c.train_configs is not None:
         for train_config in c.train_configs:
             # pass
-            Coordinator.train(train_config)
+            MLP_executor = MLP_OPBasedExecutor(conf=train_config)
+            MLP_executor.train()
+            # Coordinator.train(train_config)
     if c.eval_configs is not None:
         for eval_config in c.eval_configs:
-            pass
-            # Coordinator.eval(eval_config)
+            MLP_executor = MLP_OPBasedExecutor(conf=eval_config)
+            MLP_executor.evaluate()
 
 
 if __name__ == '__main__':

@@ -14,89 +14,10 @@ from .graph import Graph, FeatureKeys
 from .util import datasets_path, Normalizer, pad_np_vectors
 
 
-class MDataset(ABC, Dataset):
-    def __init__(self, graphs_cache_key: str, features: List[Dict], labels: List[Dict],
-                 normalization: Union[str, Callable] = "standard"):
-        self.graphs_cache_key: str = graphs_cache_key
+class MDataset(Dataset):
+    def __init__(self, features: List[Dict], labels: List[Dict]):
         self.features = features
         self.labels = labels
-        self.normalizer: Optional[Normalizer] = None
-        if isinstance(normalization, str):
-            self.normalizer = self._init_normalizer(normalization)
-        elif isinstance(normalization, Normalizer):
-            self.normalizer = normalization
-        else:
-            raise ValueError("Invalid normalization. Normalization must be a string or a callable object.")
-
-    def _init_normalizer(self, normalization: str) -> Normalizer:
-        if normalization == "Standard":
-            return self._init_normalizer_impl(preprocessing.StandardScaler)
-        elif normalization == "MinMax":
-            return self._init_normalizer_impl(preprocessing.MinMaxScaler)
-        else:
-            raise ValueError("Invalid normalization. string normalization must be 'standard', 'MinMax'.")
-
-    @abstractmethod
-    def _init_normalizer_impl(self, scaler_class):
-        pass
-
-    @classmethod
-    def _get_y_scaler_dict(cls, labels, scaler_class):
-        y_scaler_dict = dict()
-        y_sample = labels[0]
-        y_keys = y_sample.keys()
-        for key in y_keys:
-            if key not in [FeatureKeys.Y_OP_FEAT, FeatureKeys.Y_SUBGRAPH_FEAT]:
-                y_scaler_dict[key] = None
-                continue
-            if key == FeatureKeys.Y_SUBGRAPH_FEAT:
-                subgraph_feature = list(y[key] for y in labels)
-                subgraph_feature_scaler = scaler_class()
-                subgraph_feature_scaler.fit(subgraph_feature)
-                y_scaler_dict[key] = subgraph_feature_scaler
-                continue
-            assert key == FeatureKeys.Y_OP_FEAT
-            y_op_features = list()
-            for y in labels:
-                for op_feature in y[FeatureKeys.Y_OP_FEAT]:
-                    y_op_features.append(op_feature)
-            op_feature_scaler = scaler_class()
-            op_feature_scaler.fit(y_op_features)
-            y_scaler_dict[key] = op_feature_scaler
-        return y_scaler_dict
-
-    @staticmethod
-    def data_collator(samples: List[Dict], return_type="pt") -> Dict:
-        batch = dict()
-        for sample in samples:
-            for k, v in sample.items():
-                if k == "label":
-                    batch.setdefault("labels", dict())
-                    for vk, vv in v.items():
-                        batch["labels"].setdefault(vk, list())
-                        batch["labels"][vk].append(vv)
-                else:
-                    batch.setdefault(k, list())
-                    batch[k].append(v)
-
-        def make_results(d):
-            for k_, v_ in d.items():
-                if isinstance(v_, dict):
-                    make_results(v_)
-                    continue
-                v_ = np.array(v_)
-                if not k_.endswith(FeatureKeys.FEAT_SUFFIX):
-                    d[k_] = v_
-                    continue
-                if return_type == "pt":
-                    d[k_] = torch.tensor(v_, dtype=torch.float32)
-                elif return_type == "np":
-                    d[k_] = v_
-                else:
-                    raise ValueError("Invalid return type. return type must be 'pt' or 'np'.")
-
-        make_results(batch)
-        return batch
 
     def __len__(self):
         return len(self.features)
@@ -105,15 +26,108 @@ class MDataset(ABC, Dataset):
         x = self.features[index]
         y = self.labels[index]
 
-        if self.normalizer:
-            x, y = self.normalizer(x, y)
+        return x, y
 
-        item = {key: val for key, val in x.items()}
-        item['label'] = y
-        return item
-
-    def get_normalizer(self) -> Normalizer:
-        return self.normalizer
+# class MDataset(ABC, Dataset):
+#     def __init__(self, graphs_cache_key: str, features: List[Dict], labels: List[Dict],
+#                  normalization: Union[str, Callable] = "standard"):
+#         self.graphs_cache_key: str = graphs_cache_key
+#         self.features = features
+#         self.labels = labels
+#         self.normalizer: Optional[Normalizer] = None
+#         if isinstance(normalization, str):
+#             self.normalizer = self._init_normalizer(normalization)
+#         elif isinstance(normalization, Normalizer):
+#             self.normalizer = normalization
+#         else:
+#             raise ValueError("Invalid normalization. Normalization must be a string or a callable object.")
+#
+#     def _init_normalizer(self, normalization: str) -> Normalizer:
+#         if normalization == "Standard":
+#             return self._init_normalizer_impl(preprocessing.StandardScaler)
+#         elif normalization == "MinMax":
+#             return self._init_normalizer_impl(preprocessing.MinMaxScaler)
+#         else:
+#             raise ValueError("Invalid normalization. string normalization must be 'standard', 'MinMax'.")
+#
+#     @abstractmethod
+#     def _init_normalizer_impl(self, scaler_class):
+#         pass
+#
+#     @classmethod
+#     def _get_y_scaler_dict(cls, labels, scaler_class):
+#         y_scaler_dict = dict()
+#         y_sample = labels[0]
+#         y_keys = y_sample.keys()
+#         for key in y_keys:
+#             if key not in [FeatureKeys.Y_OP_FEAT, FeatureKeys.Y_SUBGRAPH_FEAT]:
+#                 y_scaler_dict[key] = None
+#                 continue
+#             if key == FeatureKeys.Y_SUBGRAPH_FEAT:
+#                 subgraph_feature = list(y[key] for y in labels)
+#                 subgraph_feature_scaler = scaler_class()
+#                 subgraph_feature_scaler.fit(subgraph_feature)
+#                 y_scaler_dict[key] = subgraph_feature_scaler
+#                 continue
+#             assert key == FeatureKeys.Y_OP_FEAT
+#             y_op_features = list()
+#             for y in labels:
+#                 for op_feature in y[FeatureKeys.Y_OP_FEAT]:
+#                     y_op_features.append(op_feature)
+#             op_feature_scaler = scaler_class()
+#             op_feature_scaler.fit(y_op_features)
+#             y_scaler_dict[key] = op_feature_scaler
+#         return y_scaler_dict
+#
+    # @staticmethod3
+    # def data_collator(samples: List[Dict], return_type="pt") -> Dict:
+    #     batch = dict()
+    #     for sample in samples:
+    #         for k, v in sample.items():
+    #             if k == "label":
+    #                 batch.setdefault("labels", dict())
+    #                 for vk, vv in v.items():
+    #                     batch["labels"].setdefault(vk, list())
+    #                     batch["labels"][vk].append(vv)
+    #             else:
+    #                 batch.setdefault(k, list())
+    #                 batch[k].append(v)
+    #
+    #     def make_results(d):
+    #         for k_, v_ in d.items():
+    #             if isinstance(v_, dict):
+    #                 make_results(v_)
+    #                 continue
+    #             v_ = np.array(v_)
+    #             if not k_.endswith(FeatureKeys.FEAT_SUFFIX):
+    #                 d[k_] = v_
+    #                 continue
+    #             if return_type == "pt":
+    #                 d[k_] = torch.tensor(v_, dtype=torch.float32)
+    #             elif return_type == "np":
+    #                 d[k_] = v_
+    #             else:
+    #                 raise ValueError("Invalid return type. return type must be 'pt' or 'np'.")
+    #
+    #     make_results(batch)
+    #     return batch
+#
+#     def __len__(self):
+#         return len(self.features)
+#
+#     def __getitem__(self, index):
+#         x = self.features[index]
+#         y = self.labels[index]
+#
+#         if self.normalizer:
+#             x, y = self.normalizer(x, y)
+#
+#         item = {key: val for key, val in x.items()}
+#         item['label'] = y
+#         return item
+#
+#     def get_normalizer(self) -> Normalizer:
+#         return self.normalizer
 
 
 class SubgraphDataset(MDataset):
@@ -166,7 +180,7 @@ class DatasetFactory:
 
     @staticmethod
     @lru_cache(maxsize=None)
-    def _load_graphs(environment: Environment, train_or_val: str = "train", dummy: bool = False) -> List[Graph]:
+    def load_graphs(environment: Environment, train_or_val: str = "train", dummy: bool = False) -> List[Graph]:
         if dummy:
             return list(Graph.from_data(None, dummy=True, seed=seed) for seed in range(100))
         data_dir = pathlib.Path(datasets_path) / f"{environment}"
@@ -188,12 +202,12 @@ class DatasetFactory:
         train_graphs_cache_key = DatasetFactory._graphs_cache_key(environment, "train", dummy)
         val_graphs_cache_key = DatasetFactory._graphs_cache_key(environment, "val", dummy)
         train_graphs = DatasetFactory.graphs_cache.get(train_graphs_cache_key,
-                                                       DatasetFactory._load_graphs(environment, train_or_val="train",
-                                                                                   dummy=dummy))
+                                                       DatasetFactory.load_graphs(environment, train_or_val="train",
+                                                                                  dummy=dummy))
         DatasetFactory.graphs_cache[train_graphs_cache_key] = train_graphs
         val_graphs = DatasetFactory.graphs_cache.get(val_graphs_cache_key,
-                                                     DatasetFactory._load_graphs(environment, train_or_val="val",
-                                                                                 dummy=dummy))
+                                                     DatasetFactory.load_graphs(environment, train_or_val="val",
+                                                                                dummy=dummy))
         DatasetFactory.graphs_cache[val_graphs_cache_key] = val_graphs
 
         train = creator(train_graphs_cache_key, normalization, **kwargs)

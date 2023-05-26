@@ -1,7 +1,25 @@
 import json
 from typing import List
 
+import torch.cuda
+from sklearn import preprocessing
+
 from objects import GPUType, Environment, DatasetType, OptimizerType, ModelType
+
+
+class JsonifyAble:
+    def to_dict(self):
+        attr_names = dir(self)
+        d = dict()
+        for attr_name in attr_names:
+            attr = self.__getattribute__(attr_name)
+            if isinstance(attr, int) or \
+                    isinstance(attr, str) or \
+                    isinstance(attr, dict) or \
+                    isinstance(attr, list) or \
+                    isinstance(attr, bool) or \
+                    attr is None:
+                d[attr_name] = attr
 
 
 class DatasetConfigMixin:
@@ -16,6 +34,12 @@ class DatasetConfigMixin:
                                                             framework=self.dataset_framework,
                                                             cuda_version=self.dataset_cuda_version)
         self.dataset_normalization = dataset_config_js.get("dataset_normalization", "Standard")
+        if self.dataset_normalization == "Standard":
+            self.dataset_normalizer_cls = preprocessing.StandardScaler
+        elif self.dataset_normalization == "MinMax":
+            self.dataset_normalizer_cls = preprocessing.MinMaxScaler
+        else:
+            raise ValueError(f"Invalid dataset_normalization: {self.dataset_normalization}")
         self.dataset_type_str = dataset_config_js.get("dataset_type", "OP")
         self.dataset_type: DatasetType = DatasetType[self.dataset_type_str]
         self.dataset_params = dataset_config_js.get("dataset_params", dict())
@@ -43,9 +67,20 @@ class ModelConfigMixin:
         self.resume_from_ckpt = model_config_js.get("resume_from_ckpt", None)
 
 
-class TrainConfig(DatasetConfigMixin, ModelConfigMixin):
+class DeviceConfigMixin:
+    def __init__(self, device_config_js, **kwargs):
+        super().__init__(**kwargs)
+        if torch.cuda.is_available():
+            self.device = device_config_js.get("device", "cuda:0")
+        else:
+            self.device = device_config_js.get("device_type", "cpu")
+
+
+class TrainConfig(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, JsonifyAble):
     def __init__(self, train_config_js):
-        super().__init__(dataset_config_js=train_config_js, model_config_js=train_config_js)
+        super().__init__(dataset_config_js=train_config_js,
+                         model_config_js=train_config_js,
+                         device_config_js=train_config_js)
         # training
         self.train_seed = train_config_js.get("train_seed", 42)
         self.dataset_sample_seed = train_config_js.get("dataset_sample_seed", 42)
@@ -55,15 +90,17 @@ class TrainConfig(DatasetConfigMixin, ModelConfigMixin):
         self.evaluation_strategy = train_config_js.get("evaluation_strategy", "epoch")
         self.eval_steps = train_config_js.get("eval_steps", 500)
         self.load_best_model_at_end = train_config_js.get("load_best_model_at_end", True)
-        self.save_strategy = train_config_js.get("save_strategy", "epoch")
+        # self.save_strategy = train_config_js.get("save_strategy", "epoch")
         self.optimizer_cls_str = train_config_js.get("optimizer", "Adam")
         self.optimizer_cls = OptimizerType[train_config_js.get("optimizer", "Adam")].value
         self.learning_rate = train_config_js.get("learning_rate", 1e-3)
 
 
-class EvalConfig(DatasetConfigMixin, ModelConfigMixin):
+class EvalConfig(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, JsonifyAble):
     def __init__(self, eval_config_js):
-        super().__init__(model_config_js=eval_config_js, dataset_config_js=eval_config_js)
+        super().__init__(model_config_js=eval_config_js,
+                         dataset_config_js=eval_config_js,
+                         device_config_js=eval_config_js)
         self.batch_size: int = eval_config_js.get("batch_size", 64)
 
 
