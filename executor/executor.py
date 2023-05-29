@@ -37,7 +37,19 @@ class Executor(ABC):
 
         self.train_ds: MDataset|None = None
         self.eval_ds: MDataset|None = None
+        self.preprocessed_train_ds: MDataset | None = None
+        self.preprocessed_eval_ds: MDataset | None = None
+
+        self.train_ds = self._init_dataset(mode="train")
+        self.eval_ds = self._init_dataset(mode="eval")
+        self.preprocessed_train_ds = self._init_preprocessed_dataset(mode="train")
+        self.preprocessed_eval_ds = self._init_preprocessed_dataset(mode="eval")
+
         self.train_records: Dict = dict()
+        self._check_params()
+
+    def _check_params(self):
+        pass
 
     @abstractmethod
     def _init_model_type(self) -> ModelType:
@@ -53,39 +65,25 @@ class Executor(ABC):
             logging.fatal("Cannot create save path: %s" % self.save_path)
             exit(-1)
 
-    def load_dataset(self, mode="train") -> MDataset:
-        if mode == "train" and self.train_ds is not None:
-            return self.train_ds
-        if mode == "eval" and self.eval_ds is not None:
-            return self.eval_ds
-        return self._load_dataset(mode=mode)
-
     @abstractmethod
-    def _load_dataset(self, mode="train") -> MDataset:
+    def _init_dataset(self, mode="train") -> MDataset:
         pass
 
-    def init_model(self, processed_train_ds: MDataset, resume_from_ckpt) -> MModule | Any:
-        if resume_from_ckpt is not None:
-            model = self._load_ckpt(resume_from_ckpt)
+    def init_model(self) -> MModule | Any:
+        if self.conf.resume_from_ckpt is not None:
+            ckpt_filepath = pathlib.Path(ckpts_dir, self.conf.resume_from_ckpt)
+            model = self._load_ckpt(ckpt_filepath)
             return model
-        return self._init_model(processed_train_ds=processed_train_ds)
+        return self._init_model()
 
     @abstractmethod
-    def _init_model(self, processed_train_ds: MDataset) -> MModule | Any:
+    def _init_model(self) -> MModule | Any:
         pass
 
     @staticmethod
-    def _load_ckpt(resume_from_ckpt) -> MModule | Any:
-        ckpt_filepath = str(pathlib.Path(ckpts_dir) / resume_from_ckpt)
+    def _load_ckpt(ckpt_filepath) -> MModule | Any:
         model = torch.load(ckpt_filepath)
         return model
-
-    def train(self):
-        train_ds = self.load_dataset(mode="train")
-        eval_ds = self.load_dataset(mode="eval")
-        processed_train_ds = self.preprocess_dataset(train_ds)
-        processed_eval_ds = self.preprocess_dataset(eval_ds)
-        self._train(processed_train_ds, processed_eval_ds)
 
     def _create_optimizer_and_scheduler(self, model: Module, num_training_steps) -> Tuple[
         torch.optim.Optimizer, LRScheduler]:
@@ -95,12 +93,15 @@ class Executor(ABC):
         lr_scheduler = ConstantLR(optimizer=optimizer)
         return optimizer, lr_scheduler
 
-    def _train(self, processed_train_ds: MDataset, processed_eval_ds: MDataset):
+    def train(self):
+        processed_train_ds = self.preprocessed_train_ds
         train_dl = DataLoader(processed_train_ds, batch_size=self.conf.batch_size, shuffle=True)
-        model = self.init_model(processed_train_ds, self.conf.resume_from_ckpt)
+        model = self.init_model()
         model.train()
         curr_train_step = 0
         optimizer, lr_scheduler = self._create_optimizer_and_scheduler(model, len(train_dl))
+        start = time.time_ns()
+        logging.info(f"{self.model_type} start training.")
         for epoch in range(self.conf.num_train_epochs):
             logging.info(f"{self.model_type} training epoch %d" % epoch)
             for i, data in enumerate(tqdm(train_dl)):
@@ -116,27 +117,43 @@ class Executor(ABC):
                 self.train_records.setdefault("loss", list())
                 self.train_records["loss"].append(loss_value)
                 if curr_train_step % self.conf.eval_steps == 0:
-                    logging.info(f"{self.model_type} eval at step {curr_train_step}")
+                    now = time.time_ns()
+                    train_dur = (now - start) / 1e9
+                    logging.info(f"{self.model_type} trained for {train_dur} seconds.")
+                    logging.info(f"{self.model_type} eval at step {curr_train_step}.")
                     model.eval()
                     metrics = self._evaluate(model)
                     logging.info(f"{self.model_type} train loss: {loss_value}, eval metrics: {metrics}")
+
                     self.train_records.setdefault("eval_metrics", list())
                     self.train_records["eval_metrics"].append({
                         "metrics": metrics,
-                        "step": curr_train_step
+                        "step": curr_train_step,
+                        "duration": train_dur
                     })
                     self.save_model(model, curr_steps=curr_train_step, curr_loss_value=loss_value)
                     model.train()
             lr_scheduler.step()
 
+    def _init_preprocessed_dataset(self, mode="train") -> MDataset:
+        mode_to_attr = {
+            "train": "preprocessed_train_ds",
+            "eval": "preprocessed_eval_ds"
+        }
+        cache = self.__getattribute__(mode_to_attr[mode])
+        if self.__getattribute__(mode_to_attr[mode]) is not None:
+            return cache
+
+        ds = self.train_ds if mode == "train" else self.eval_ds
+        preprocessed = self._preprocess_dataset(ds)
+        return preprocessed
+
     @abstractmethod
-    def preprocess_dataset(self, ds: MDataset) -> MDataset:
+    def _preprocess_dataset(self, ds: MDataset) -> MDataset:
         pass
 
     def evaluate(self):
-        train_ds = self.load_dataset(mode="train")
-        processed_train_ds = self.preprocess_dataset(train_ds)
-        model = self.init_model(processed_train_ds, self.conf.resume_from_ckpt)
+        model = self.init_model()
         metrics = self._evaluate(model)
         logging.info(f"{self.model_type} evaluated metrics: {metrics}")
         return metrics

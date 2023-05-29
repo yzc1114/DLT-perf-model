@@ -12,6 +12,8 @@ class JsonifyAble:
         attr_names = dir(self)
         d = dict()
         for attr_name in attr_names:
+            if attr_name.startswith("__"):
+                continue
             attr = self.__getattribute__(attr_name)
             if isinstance(attr, int) or \
                     isinstance(attr, str) or \
@@ -20,6 +22,7 @@ class JsonifyAble:
                     isinstance(attr, bool) or \
                     attr is None:
                 d[attr_name] = attr
+        return d
 
 
 class DatasetConfigMixin:
@@ -88,7 +91,7 @@ class TrainConfig(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, Jsoni
         self.batch_size = train_config_js.get("batch_size", 64)
         self.logging_steps = train_config_js.get("logging_steps", 100)
         self.evaluation_strategy = train_config_js.get("evaluation_strategy", "epoch")
-        self.eval_steps = train_config_js.get("eval_steps", 500)
+        self.eval_steps = train_config_js.get("eval_steps", 50)
         self.load_best_model_at_end = train_config_js.get("load_best_model_at_end", True)
         # self.save_strategy = train_config_js.get("save_strategy", "epoch")
         self.optimizer_cls_str = train_config_js.get("optimizer", "Adam")

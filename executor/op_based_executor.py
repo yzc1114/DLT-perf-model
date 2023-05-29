@@ -1,7 +1,7 @@
-
 import logging
 import pathlib
-import sys
+import pickle
+import time
 from abc import abstractmethod
 from collections import defaultdict
 from functools import lru_cache
@@ -13,28 +13,31 @@ import numpy as np
 import torch
 import torch.nn
 import torch.optim
+from sklearn import ensemble
+from sklearn.metrics import mean_squared_error
 from torch.nn import MSELoss, ReLU
 from torch.utils.data import DataLoader
-from torch import autocast
 
 from config import TrainConfig, EvalConfig
-from data import Graph
 from data.dataset import MDataset
-from objects import ModelType
-
-from executor.util import nested_detach
 from executor.base_module import MModule
 from executor.executor import Executor
 from executor.metric import MetricUtil
+from executor.util import nested_detach
+from objects import ModelType
 
 
 class OPBasedExecutor(Executor):
-    def __init__(self, conf: TrainConfig|EvalConfig|None=None):
+    def __init__(self, conf: TrainConfig | EvalConfig | None = None):
         super().__init__(conf)
         self.scalers: Tuple | None = None
 
     @staticmethod
-    def node_features(g, op_type_encoding="one-hot", mode="complex", encode_hyper_to_node: bool = True, duration_summed: bool = False) -> Tuple[
+    def node_features(g,
+                      op_type_encoding="one-hot",
+                      mode="complex",
+                      encode_hyper_to_node: bool = True,
+                      duration_summed: bool = False) -> Tuple[
         List[Dict], List[Dict]]:
         X, Y = list(), list()
         optimizer_feature = g.optimizer_type.encode()
@@ -59,7 +62,7 @@ class OPBasedExecutor(Executor):
             Y.append(y)
         return X, Y
 
-    def _load_dataset(self, mode="train") -> MDataset:
+    def _init_dataset(self, mode="train") -> MDataset:
         conf = self.conf
         if mode == "train":
             graphs = self.train_graphs
@@ -87,12 +90,12 @@ class OPBasedExecutor(Executor):
         return dataset
 
     @abstractmethod
-    def _init_model(self, processed_train_ds: MDataset) -> MModule | Any:
+    def _init_model(self) -> MModule | Any:
         pass
 
     @lru_cache(maxsize=None)
     def _get_scalers(self):
-        train_ds = self.load_dataset(mode="train")
+        train_ds = self.train_ds
         scaler_cls = self.conf.dataset_normalizer_cls
         op_feature_array = list()
         y_array = list()
@@ -112,7 +115,7 @@ class OPBasedExecutor(Executor):
         y_scaler.fit(y_array)
         return op_feature_scaler, y_scaler
 
-    def preprocess_dataset(self, ds: MDataset) -> MDataset:
+    def _preprocess_dataset(self, ds: MDataset) -> MDataset:
         op_feature_array = list()
         y_array = list()
 
@@ -147,8 +150,7 @@ class OPBasedExecutor(Executor):
         return ds
 
     def _evaluate(self, model) -> Dict[str, float]:
-        eval_ds = self.load_dataset(mode="eval")
-        processed_eval_ds = self.preprocess_dataset(eval_ds)
+        processed_eval_ds = self.preprocessed_eval_ds
         dl = DataLoader(processed_eval_ds, batch_size=self.conf.batch_size, shuffle=False)
         input_batches = list()
         output_batches = list()
@@ -267,9 +269,9 @@ class MLP_OPBasedExecutor(OPBasedExecutor):
     def _init_model_type(self) -> ModelType:
         return ModelType.MLP
 
-    def _init_model(self, processed_train_ds: MDataset) -> MModule | Any:
-        sample_x_dict = processed_train_ds.features[0]
-        sample_y_dict = processed_train_ds.labels[0]
+    def _init_model(self) -> MModule | Any:
+        sample_x_dict = self.preprocessed_train_ds.features[0]
+        sample_y_dict = self.preprocessed_eval_ds.labels[0]
         return MLPModel(input_dimension=len(sample_x_dict["x_op_feature"]),
                         output_dimension=len(sample_y_dict["y_node_durations"]))
 
@@ -278,6 +280,117 @@ class PerfNet_OPBasedExecutor(OPBasedExecutor):
     def _init_model_type(self) -> ModelType:
         return ModelType.PerfNet
 
-    def _init_model(self, processed_train_ds: MDataset) -> MModule | Any:
+    def _init_model(self) -> MModule | Any:
+        processed_train_ds = self.preprocessed_train_ds
         sample_y_dict = processed_train_ds.labels[0]
         return PerfNetModel(output_dimension=len(sample_y_dict["y_node_duration"]))
+
+
+class GBDT_OPBasedExecutor(OPBasedExecutor):
+    def _init_model_type(self) -> ModelType:
+        return ModelType.GBDT
+
+    def _check_params(self):
+        assert self.conf.dataset_params["duration_summed"]
+
+    def _init_model(self) -> MModule | Any:
+        conf = self.conf
+        config_params = conf.model_params
+        model_params = {
+            "n_estimators": config_params.get("n_estimators", 500),
+            "max_depth": config_params.get("max_depth", 4),
+            "min_samples_split": config_params.get("min_samples_split", 4),
+            "learning_rate": config_params.get("learning_rate", 0.001),
+            "loss": "squared_error",
+        }
+        reg = ensemble.GradientBoostingRegressor(**model_params)
+        return reg
+
+    @staticmethod
+    def dataset_to_samples(dataset: MDataset):
+        samples = list(dataset)
+        X = defaultdict(list)
+        Y = defaultdict(list)
+        for x, y in samples:
+            assert isinstance(x, dict) and isinstance(y, dict)
+
+            def collate(d: Dict, C):
+                for k, v in d.items():
+                    C[k].append(v)
+
+            collate(x, X)
+            collate(y, Y)
+        return X, Y
+
+    @staticmethod
+    def _save_filename(loss):
+        return "checkpoint_%.2f.pickle" % loss
+
+    @staticmethod
+    def _loss_from_filename(filename: str) -> float:
+        return float(filename[:filename.index(".")].split("_")[-1])
+
+    def train(self):
+        logging.info(f"{self.model_type} starts training.")
+        ds = self.preprocessed_train_ds
+        X, Y = self.dataset_to_samples(ds)
+        model = self.init_model()
+        start = time.time_ns()
+        X_OP = X["x_op_feature"]
+        Y_dur = Y["y_node_durations"]
+        model.fit(X_OP, Y_dur)
+        end = time.time_ns()
+        second_dur = (end - start) / 1e9
+        logging.info(f"{self.model_type} ends training for {second_dur} seconds.")
+        metrics = self._evaluate(model)
+        eval_loss = metrics["eval_loss"]
+        self.train_records["eval_metrics"] = {
+            "metrics": metrics,
+            "duration": second_dur
+        }
+        self.save_model(model=model, curr_steps=0, curr_loss_value=eval_loss)
+
+    @staticmethod
+    def _save_ckpt_to(model, filepath):
+        with open(pathlib.Path(filepath), "wb") as f:
+            pickle.dump(model, f)
+
+    @staticmethod
+    def _load_ckpt(ckpt_filepath) -> MModule | Any:
+        with open(pathlib.Path(ckpt_filepath), "rb") as f:
+            model = pickle.load(f)
+            return model
+
+    def _evaluate(
+            self,
+            model
+    ) -> Dict[str, float]:
+        ds = self.preprocessed_eval_ds
+        X, Y = self.dataset_to_samples(ds)
+        X_OP = X["x_op_feature"]
+        Y_dur = Y["y_node_durations"]
+        Y_pred = model.predict(X_OP)
+
+        Y_dur = np.array(Y_dur).reshape(-1, 1)
+        Y_pred = np.array(Y_pred).reshape(-1, 1)
+        _, y_scaler = self._get_scalers()
+        transformed_Y: np.ndarray = y_scaler.inverse_transform(Y_dur).reshape(-1)
+        transformed_Y_pred: np.ndarray = y_scaler.inverse_transform(Y_pred).reshape(-1)
+
+        mse = mean_squared_error(transformed_Y, transformed_Y_pred)
+
+        dataset_len = len(X)
+
+        op_durations = transformed_Y_pred
+        graph_id_to_duration_pred = defaultdict(int)
+        for i in range(dataset_len):
+            graph_id = X["x_graph_id"][i]
+            op_pred = op_durations[i]
+            graph_id_to_duration_pred[graph_id] += op_pred
+
+        graphs = self.eval_graphs
+        duration_metrics = MetricUtil.compute_duration_metrics(graphs, graph_id_to_duration_pred)
+        return {
+            "eval_loss": mse,
+            **duration_metrics
+        }

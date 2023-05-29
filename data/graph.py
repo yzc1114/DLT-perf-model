@@ -191,7 +191,7 @@ class Graph:
             FeatureKeys.Y_OP_FEAT: node_durations
         }
 
-    def _optimizer_feature(self):
+    def optimizer_feature(self):
         return self.optimizer_type.encode()
 
     class FeatureExtractor(ABC):
@@ -208,7 +208,7 @@ class Graph:
             List[Dict], List[Dict]]:
             graph = self.graph
             X, Y = list(), list()
-            optimizer_feature = graph._optimizer_feature()
+            optimizer_feature = graph.optimizer_feature()
             for i, node in enumerate(graph.nodes):
                 x_op_feature = node.op.to_feature_array(op_type_encoding, mode)
                 if encode_hyper_to_node:
@@ -248,7 +248,7 @@ class Graph:
             super().__init__(graph)
 
         def _postprocess_matrix(self, feature_matrix, adjacency_matrix) -> Tuple[np.ndarray, np.ndarray]:
-            optimizer_node_feature = np.array(self.graph._optimizer_feature())
+            optimizer_node_feature = np.array(self.graph.optimizer_feature())
             feature_matrix.append(optimizer_node_feature)
             adjacency_matrix.append(np.zeros(len(adjacency_matrix[0])))
 
@@ -329,7 +329,7 @@ class Graph:
                 feature = np.array(feature)
                 feature_matrix.append(feature)
 
-            optimizer_node_feature = np.array(self.graph._optimizer_feature())
+            optimizer_node_feature = np.array(self.graph.optimizer_feature())
             feature_matrix.append(optimizer_node_feature)
             feature_matrix = pad_np_vectors(feature_matrix)
             feature_matrix = np.array(feature_matrix)

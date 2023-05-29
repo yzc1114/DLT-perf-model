@@ -12,6 +12,7 @@ class ModelType(Enum):
     PerfNet = 3
     RNN = 4
     Transformer = 5
+    MLPTestGrouping = 100
 
 
 class Environment:
