@@ -16,7 +16,6 @@ import torch.optim
 from sklearn import ensemble
 from sklearn.metrics import mean_squared_error
 from torch.nn import MSELoss, ReLU
-from torch.utils.data import DataLoader
 
 from config import TrainConfig, EvalConfig
 from data.dataset import MDataset
@@ -150,16 +149,7 @@ class OPBasedExecutor(Executor):
         return ds
 
     def _evaluate(self, model) -> Dict[str, float]:
-        processed_eval_ds = self.preprocessed_eval_ds
-        dl = DataLoader(processed_eval_ds, batch_size=self.conf.batch_size, shuffle=False)
-        input_batches = list()
-        output_batches = list()
-        for data in dl:
-            features, _ = data
-            with torch.no_grad():
-                outputs = model(features)
-            input_batches.append(features)
-            output_batches.append(outputs)
+        input_batches, output_batches = self._dl_evaluate_pred(model)
 
         batches_len = len(input_batches)
 

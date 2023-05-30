@@ -2,9 +2,10 @@ import json
 import logging
 import os
 import pathlib
+import random
 import time
 from abc import ABC, abstractmethod
-from typing import Tuple, Any, Dict, Mapping, List
+from typing import Tuple, Any, Dict
 
 import numpy as np
 import torch.optim
@@ -12,31 +13,33 @@ from torch.nn import Module
 from torch.optim.lr_scheduler import LRScheduler, ConstantLR
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from torch import autocast
+
 from config import TrainConfig, EvalConfig
-from data.dataset import MDataset, DatasetFactory, Graph
+from data.dataset import MDataset, load_graphs
 from objects import ModelType
-from trainers import MModule
+from .base_module import MModule
 from .util import nested_detach
+
 ckpts_dir = pathlib.Path(__file__).parent.parent / 'ckpts'
 logs_dir = pathlib.Path(__file__).parent.parent / 'logs'
 
 
 class Executor(ABC):
-    def __init__(self, conf: TrainConfig|EvalConfig):
+    def __init__(self, conf: TrainConfig | EvalConfig):
         self.model_type: ModelType = self._init_model_type()
         if isinstance(conf, TrainConfig):
             self._init_save_path()
-        self.conf: TrainConfig|EvalConfig = conf
-        self.train_graphs = DatasetFactory.load_graphs(self.conf.dataset_environment,
-                                                       train_or_val="train",
-                                                       dummy=self.conf.dataset_dummy)
-        self.eval_graphs = DatasetFactory.load_graphs(self.conf.dataset_environment,
-                                                      train_or_val="val",
-                                                      dummy=self.conf.dataset_dummy)
+        self.conf: TrainConfig | EvalConfig = conf
+        self.train_graphs = load_graphs(self.conf.dataset_environment,
+                                        train_or_val="train",
+                                        dummy=self.conf.dataset_dummy)
+        self.eval_graphs = load_graphs(self.conf.dataset_environment,
+                                       train_or_val="val",
+                                       dummy=self.conf.dataset_dummy)
+        self.set_seed()
 
-        self.train_ds: MDataset|None = None
-        self.eval_ds: MDataset|None = None
+        self.train_ds: MDataset | None = None
+        self.eval_ds: MDataset | None = None
         self.preprocessed_train_ds: MDataset | None = None
         self.preprocessed_eval_ds: MDataset | None = None
 
@@ -47,6 +50,20 @@ class Executor(ABC):
 
         self.train_records: Dict = dict()
         self._check_params()
+
+    def set_seed(self):
+        seed = self.conf.all_seed
+        np.random.seed(seed)
+        random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(seed)
+            # When running on the CuDNN backend, two further options must be set
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+        # Set a fixed value for the hash seed
+        os.environ["PYTHONHASHSEED"] = str(seed)
+        print(f"Random seed set as {seed}")
 
     def _check_params(self):
         pass
@@ -161,6 +178,20 @@ class Executor(ABC):
     @abstractmethod
     def _evaluate(self, model) -> Dict[str, float]:
         pass
+
+    def _dl_evaluate_pred(self, model: MModule):
+        processed_eval_ds = self.preprocessed_eval_ds
+        dl = DataLoader(processed_eval_ds, batch_size=self.conf.batch_size, shuffle=False)
+        input_batches = list()
+        output_batches = list()
+        for data in dl:
+            features, _ = data
+            with torch.no_grad():
+                outputs = model(features)
+            input_batches.append(features)
+            output_batches.append(outputs)
+
+        return input_batches, output_batches
 
     def save_model(self, model, curr_steps: int, curr_loss_value: float):
         d = {

@@ -1,10 +1,11 @@
 import argparse
+import logging
 import pathlib
 
 from config import Config
 from executor import init_executor
 from logger import init_logging
-import logging
+
 init_logging()
 
 parser = argparse.ArgumentParser(description='DLT Perf Predicting')

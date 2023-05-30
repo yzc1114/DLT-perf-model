@@ -11,8 +11,9 @@ class ModelType(Enum):
     MLP = 2
     PerfNet = 3
     RNN = 4
-    Transformer = 5
+    TransformerRegression = 5
     MLPTestGrouping = 100
+    MLPTestSubgraph = 101
 
 
 class Environment:

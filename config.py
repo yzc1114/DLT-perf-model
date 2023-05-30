@@ -47,7 +47,6 @@ class DatasetConfigMixin:
         self.dataset_type: DatasetType = DatasetType[self.dataset_type_str]
         self.dataset_params = dataset_config_js.get("dataset_params", dict())
         self.dataset_train_proportion = dataset_config_js.get("train_ds_proportion", 0.7)
-        self.dataset_seed = dataset_config_js.get("dataset_seed", 42)
         self.dataset_dummy = dataset_config_js.get("dataset_dummy", False)
 
     def identifier(self) -> str:
@@ -85,8 +84,7 @@ class TrainConfig(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, Jsoni
                          model_config_js=train_config_js,
                          device_config_js=train_config_js)
         # training
-        self.train_seed = train_config_js.get("train_seed", 42)
-        self.dataset_sample_seed = train_config_js.get("dataset_sample_seed", 42)
+        self.all_seed = train_config_js.get("all_seed", 42)
         self.num_train_epochs = train_config_js.get("num_train_epochs", 100)
         self.batch_size = train_config_js.get("batch_size", 64)
         self.logging_steps = train_config_js.get("logging_steps", 100)
@@ -104,6 +102,7 @@ class EvalConfig(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, Jsonif
         super().__init__(model_config_js=eval_config_js,
                          dataset_config_js=eval_config_js,
                          device_config_js=eval_config_js)
+        self.all_seed = eval_config_js.get("all_seed", 42)
         self.batch_size: int = eval_config_js.get("batch_size", 64)
 
 

@@ -1,5 +1,7 @@
-import numpy as np
 from typing import Mapping, List
+
+import numpy as np
+
 
 def nested_detach(tensors):
     if isinstance(tensors, (list, tuple)):

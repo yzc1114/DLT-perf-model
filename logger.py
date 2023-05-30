@@ -15,4 +15,3 @@ def init_logging():
         format='[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s',
         handlers=handlers
     )
-

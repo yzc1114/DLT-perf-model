@@ -1,6 +1,9 @@
 from typing import List, Dict
-from data import Graph
+
 import numpy as np
+
+from data import Graph
+
 
 class MetricUtil:
     @staticmethod

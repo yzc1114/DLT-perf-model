@@ -1,5 +1,3 @@
-import math
-from abc import abstractmethod
 from abc import abstractmethod
 from collections import defaultdict
 from functools import lru_cache
@@ -10,9 +8,8 @@ import numpy as np
 import torch
 import torch.nn
 import torch.optim
-from torch.utils.data import DataLoader
+from torch.nn import MSELoss
 
-from torch.nn import MSELoss, ReLU
 from config import TrainConfig, EvalConfig
 from data.dataset import MDataset
 from executor.base_module import MModule
@@ -29,14 +26,7 @@ class GroupingBasedExecutor(Executor):
 
     @staticmethod
     def full_graph_feature(graph, subgraph_count: int = 10, **kwargs) -> Tuple[Dict[str, np.ndarray], Dict]:
-        subgraph_node_size = math.ceil(len(graph.nodes) / subgraph_count)
-        subgraphs = list()
-        node_id_to_group_idx = dict()
-        for i in range(subgraph_count):
-            subgraph_nodes = graph.nodes[i * subgraph_node_size: (i + 1) * subgraph_node_size]
-            subgraphs.append(subgraph_nodes)
-            for node in subgraph_nodes:
-                node_id_to_group_idx[node.node_id] = i
+        subgraphs, node_id_to_group_idx = graph.subgraphs(subgraph_count=subgraph_count)
 
         feature_matrix = list()
         for subgraph in subgraphs:
@@ -65,7 +55,7 @@ class GroupingBasedExecutor(Executor):
                     vector[idx] = 1
             adjacency_matrix.append(vector)
 
-        optimizer_node_feature = np.array(graph.optimizer_feature())
+        optimizer_node_feature = np.array(graph.graph_meta_feature())
         feature_matrix.append(optimizer_node_feature)
         adjacency_matrix.append(np.zeros(len(adjacency_matrix[0])))
 
@@ -184,16 +174,7 @@ class GroupingBasedExecutor(Executor):
         return ds
 
     def _evaluate(self, model) -> Dict[str, float]:
-        processed_eval_ds = self.preprocessed_eval_ds
-        dl = DataLoader(processed_eval_ds, batch_size=self.conf.batch_size, shuffle=False)
-        input_batches = list()
-        output_batches = list()
-        for data in dl:
-            features, _ = data
-            with torch.no_grad():
-                outputs = model(features)
-            input_batches.append(features)
-            output_batches.append(outputs)
+        input_batches, output_batches = self._dl_evaluate_pred(model)
 
         batches_len = len(input_batches)
 
@@ -219,8 +200,6 @@ class GroupingBasedExecutor(Executor):
         return duration_metrics
 
 
-
-
 class MLPTest_GroupingBasedExecutor(GroupingBasedExecutor):
     def _init_model_type(self) -> ModelType:
         return ModelType.MLPTestGrouping
@@ -230,7 +209,7 @@ class MLPTest_GroupingBasedExecutor(GroupingBasedExecutor):
         sample_y_dict = self.preprocessed_train_ds.labels[0]
         shape = len(sample_x_dict["x_feature_matrix"]), len(sample_x_dict["x_feature_matrix"][0])
         return MLPTest_GroupingModel(input_shape=shape,
-                        output_dimension=len(sample_y_dict["y_graph_duration"]))
+                                     output_dimension=len(sample_y_dict["y_graph_duration"]))
 
 
 class MLPTest_GroupingModel(MModule):
