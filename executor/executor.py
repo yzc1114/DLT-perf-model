@@ -5,7 +5,7 @@ import pathlib
 import random
 import time
 from abc import ABC, abstractmethod
-from typing import Tuple, Any, Dict
+from typing import Tuple, Any, Dict, List
 
 import numpy as np
 import torch.optim
@@ -51,6 +51,16 @@ class Executor(ABC):
         self.train_records: Dict = dict()
         self._check_params()
 
+    @staticmethod
+    @abstractmethod
+    def default_model_params() -> Dict[str, Any]:
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def grid_search_model_params() -> Dict[str, List]:
+        pass
+
     def set_seed(self):
         seed = self.conf.all_seed
         np.random.seed(seed)
@@ -76,6 +86,12 @@ class Executor(ABC):
         time_format = "%Y-%m-%d_%H-%M-%S"
         time_str = time.strftime(time_format)
         self.save_path = str(ckpts_dir / self.model_type.name / time_str)
+
+    def _ensure_save_dir(self):
+        p = pathlib.Path(self.save_path)
+        if p.exists():
+            assert p.is_dir()
+            return
         try:
             os.makedirs(self.save_path)
         except IOError:
@@ -144,6 +160,7 @@ class Executor(ABC):
 
                     self.train_records.setdefault("eval_metrics", list())
                     self.train_records["eval_metrics"].append({
+                        "train_loss": loss_value,
                         "metrics": metrics,
                         "step": curr_train_step,
                         "duration": train_dur
@@ -198,6 +215,7 @@ class Executor(ABC):
             "train_config": self.conf.to_dict(),
             "train_records": self.train_records
         }
+        self._ensure_save_dir()
         with open(pathlib.Path(self.save_path, "train_records.json"), "w") as f:
             json.dump(d, f, indent="\t")
         self._save_ckpt_to(model, pathlib.Path(self.save_path, f"ckpt_{curr_steps}_{curr_loss_value}.pth"))

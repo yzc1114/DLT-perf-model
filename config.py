@@ -4,7 +4,7 @@ from typing import List
 import torch.cuda
 from sklearn import preprocessing
 
-from objects import GPUType, Environment, DatasetType, OptimizerType, ModelType
+from objects import GPUType, Environment, OptimizerType, ModelType
 
 
 class JsonifyAble:
@@ -43,8 +43,6 @@ class DatasetConfigMixin:
             self.dataset_normalizer_cls = preprocessing.MinMaxScaler
         else:
             raise ValueError(f"Invalid dataset_normalization: {self.dataset_normalization}")
-        self.dataset_type_str = dataset_config_js.get("dataset_type", "OP")
-        self.dataset_type: DatasetType = DatasetType[self.dataset_type_str]
         self.dataset_params = dataset_config_js.get("dataset_params", dict())
         self.dataset_train_proportion = dataset_config_js.get("train_ds_proportion", 0.7)
         self.dataset_dummy = dataset_config_js.get("dataset_dummy", False)

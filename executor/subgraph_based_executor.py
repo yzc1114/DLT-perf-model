@@ -8,9 +8,10 @@ from typing import Tuple, Any
 
 import numpy as np
 import torch
-import torch.nn
+import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim
-from torch.nn import MSELoss
+from torch.nn import MSELoss, LSTM
 
 from config import TrainConfig, EvalConfig
 from data import GraphNode, Graph
@@ -20,6 +21,7 @@ from executor.executor import Executor
 from executor.metric import MetricUtil
 from executor.util import nested_detach, pad_np_vectors
 from objects import ModelType
+from .gcn import GCNLayer
 from .transformer import TransformerRegressionModel
 
 
@@ -43,10 +45,24 @@ class SubgraphBasedExecutor(Executor):
 
             feature_matrix = pad_np_vectors(feature_matrix)
             feature_matrix = np.array(feature_matrix)
+
+            adj_matrix = [
+                [0.] * len(nodes) for _ in range(len(nodes))
+            ]
+            node_id_to_node = {node.node_id: node for node in nodes}
+            for curr_idx, node in enumerate(nodes):
+                for neighbor in node.neighbors:
+                    if neighbor.node_id not in node_id_to_node:
+                        continue
+                    adj_idx = nodes.index(neighbor)
+                    adj_matrix[curr_idx][adj_idx] = 1.
+
+            adj_matrix = np.array(adj_matrix)
             # x
             feature = {
                 "x_graph_id": graph.ID,
-                "x_subgraph_feature": feature_matrix
+                "x_subgraph_feature": feature_matrix,
+                "x_adj_matrix": adj_matrix
             }
 
             # y
@@ -165,6 +181,9 @@ class SubgraphBasedExecutor(Executor):
             x_subgraph_feature = np.array(x_subgraph_feature).astype(np.float32)
             transformed_x_subgraph_feature = x_subgraph_feature_scaler.transform(x_subgraph_feature)
 
+            x_adj_matrix = feature["x_adj_matrix"]
+            x_adj_matrix = np.array(x_adj_matrix).astype(np.float32)
+
             y_nodes_durations = label["y_nodes_durations"]
             assert isinstance(y_nodes_durations, list)
             y_nodes_durations = np.array(y_nodes_durations).astype(np.float32)
@@ -178,6 +197,7 @@ class SubgraphBasedExecutor(Executor):
             processed_features.append({
                 "x_graph_id": feature["x_graph_id"],
                 "x_subgraph_feature": transformed_x_subgraph_feature,
+                "x_adj_matrix": x_adj_matrix
             })
 
             processed_labels.append({
@@ -222,6 +242,14 @@ class MLPTest_SubgraphBasedExecutor(SubgraphBasedExecutor):
     def _init_model_type(self) -> ModelType:
         return ModelType.MLPTestGrouping
 
+    @staticmethod
+    def default_model_params() -> Dict[str, Any]:
+        return {}
+
+    @staticmethod
+    def grid_search_model_params() -> Dict[str, List]:
+        return {}
+
     def _init_model(self) -> MModule | Any:
         sample_x_dict = self.preprocessed_train_ds.features[0]
         sample_y_dict = self.preprocessed_train_ds.labels[0]
@@ -229,7 +257,9 @@ class MLPTest_SubgraphBasedExecutor(SubgraphBasedExecutor):
         x_node_feature_size = len(sample_x_dict["x_subgraph_feature"][0])
         y_nodes_duration_count = len(sample_y_dict["y_nodes_durations"])
         y_nodes_duration_size = len(sample_y_dict["y_nodes_durations"][0])
-        return MLPTest_SubgraphModel(x_node_feature_count, x_node_feature_size, y_nodes_duration_count,
+        return MLPTest_SubgraphModel(x_node_feature_count,
+                                     x_node_feature_size,
+                                     y_nodes_duration_count,
                                      y_nodes_duration_size)
 
 
@@ -269,24 +299,165 @@ class MLPTest_SubgraphModel(MModule):
 
 class TransformerRegressionSubgraphBasedExecutor(SubgraphBasedExecutor):
     def _init_model_type(self) -> ModelType:
-        return ModelType.MLPTestGrouping
+        return ModelType.TransformerRegression
+
+    @staticmethod
+    def default_model_params() -> Dict[str, Any]:
+        return {
+            "nhead": 8,
+            "d_hid": 128,
+            "nlayers": 6,
+            "dropout": 0.05,
+        }
+
+    @staticmethod
+    def grid_search_model_params() -> Dict[str, List]:
+        return {
+            "nhead": [4, 8],
+            "d_hid": [1024, 2048],
+            "nlayers": [4, 6, 8],
+            "dropout": [0.2, 0.5],
+        }
 
     def _init_model(self) -> MModule | Any:
         sample_x_dict = self.preprocessed_train_ds.features[0]
         sample_y_dict = self.preprocessed_train_ds.labels[0]
         x_node_feature_size = len(sample_x_dict["x_subgraph_feature"][0])
-        subgraph_durations_len = len(sample_y_dict["y_subgraph_durations"])
+        nodes_durations_len = len(sample_y_dict["y_nodes_durations"][0])
         model_params = self.conf.model_params
-        nhead = model_params.get("nhead", 8)
+        final_params = self.default_model_params()
+        for k, v in final_params.items():
+            final_params[k] = model_params.get(k, v)
+
+        nhead = final_params["nhead"]
         while x_node_feature_size % nhead != 0:
             nhead -= 1
-        if nhead != model_params.get("nhead", 8):
+        if nhead != final_params["nhead"]:
+            final_params["nhead"] = nhead
             logging.info(f"Transformer nhead set to {nhead}.")
+            self.conf.model_params["nhead"] = nhead
+
         return TransformerRegressionModel(
             d_model=x_node_feature_size,
-            nhead=nhead,
-            d_hid=model_params.get("d_hid", 2048),
-            nlayers=model_params.get("nlayers", 6),
-            dropout=model_params.get("dropout", 0.5),
-            output_d=subgraph_durations_len
+            output_d=nodes_durations_len,
+            **final_params
+        )
+
+
+class LSTMModel(MModule):
+    def __init__(self, feature_size, nodes_durations_len, num_layers, bidirectional, **kwargs):
+        super().__init__(**kwargs)
+        self.lstm = LSTM(input_size=feature_size, hidden_size=feature_size, num_layers=num_layers, batch_first=True,
+                         bidirectional=bidirectional)
+        num_directions = 2 if bidirectional else 1
+        self.project = torch.nn.Linear(in_features=feature_size * num_directions, out_features=nodes_durations_len)
+        self.loss_fn = MSELoss()
+
+    def forward(self, X):
+        X = X["x_subgraph_feature"]
+        out, _ = self.lstm(X)
+        Y = self.project(out)
+        return Y
+
+    def compute_loss(self, outputs, Y):
+        node_durations = Y["y_nodes_durations"]
+        loss = self.loss_fn(outputs, node_durations)
+        return loss
+
+
+class LSTMSubgraphBasedExecutor(SubgraphBasedExecutor):
+    def _init_model_type(self) -> ModelType:
+        return ModelType.LSTM
+
+    @staticmethod
+    def default_model_params() -> Dict[str, Any]:
+        return {
+            "num_layers": 4,
+            "bidirectional": True,
+        }
+
+    @staticmethod
+    def grid_search_model_params() -> Dict[str, List]:
+        return {
+            "num_layers": [2, 4],
+            "bidirectional": [True, False],
+        }
+
+    def _init_model(self) -> MModule | Any:
+        sample_x_dict = self.preprocessed_train_ds.features[0]
+        sample_y_dict = self.preprocessed_train_ds.labels[0]
+        x_node_feature_size = len(sample_x_dict["x_subgraph_feature"][0])
+        y_nodes_durations_len = len(sample_y_dict["y_nodes_durations"][0])
+        model_params = self.conf.model_params
+        final_params = self.default_model_params()
+        for k, v in final_params.items():
+            final_params[k] = model_params.get(k, v)
+        return LSTMModel(
+            feature_size=x_node_feature_size,
+            nodes_durations_len=y_nodes_durations_len,
+            **final_params
+        )
+
+
+class GCNSubgraphModel(MModule):
+    def __init__(self, dim_feats, dim_h, dim_out, n_layers, dropout):
+        super(GCNSubgraphModel, self).__init__()
+        self.layers = nn.ModuleList()
+        # input layer
+        self.layers.append(GCNLayer(dim_feats, dim_h, F.relu, 0))
+        # hidden layers
+        for i in range(n_layers - 1):
+            self.layers.append(GCNLayer(dim_h, dim_h, F.relu, dropout))
+        # output layer
+        self.layers.append(GCNLayer(dim_h, dim_out, None, dropout))
+        self.loss_fn = MSELoss()
+
+    def forward(self, X):
+        adj, features = X["x_adj_matrix"], X["x_subgraph_feature"]
+        h = features
+        for layer in self.layers:
+            h = layer(adj, h)
+        return h
+
+    def compute_loss(self, outputs, Y) -> torch.Tensor:
+        y_nodes_durations = Y["y_nodes_durations"]
+        loss = self.loss_fn(outputs, y_nodes_durations)
+        return loss
+
+
+class GCNSubgraphBasedExecutor(SubgraphBasedExecutor):
+    def _init_model_type(self) -> ModelType:
+        return ModelType.GCNSubgraph
+
+    @staticmethod
+    def default_model_params() -> Dict[str, Any]:
+        return {
+            "dim_h": None,
+            "n_layers": 2,
+            "dropout": 0.1,
+        }
+
+    @staticmethod
+    def grid_search_model_params() -> Dict[str, List]:
+        return {
+            "dim_h": [32, 64],
+            "n_layers": [2, 4],
+            "dropout": [0.2, 0.5],
+        }
+
+    def _init_model(self) -> MModule | Any:
+        sample_x_dict = self.preprocessed_train_ds.features[0]
+        sample_y_dict = self.preprocessed_train_ds.labels[0]
+        x_node_feature_size = len(sample_x_dict["x_subgraph_feature"][0])
+        y_nodes_durations_len = len(sample_y_dict["y_nodes_durations"][0])
+        model_params = self.conf.model_params
+        final_params = self.default_model_params()
+        for k, v in final_params.items():
+            final_params[k] = model_params.get(k, v)
+        if final_params["dim_h"] is None:
+            final_params["dim_h"] = x_node_feature_size
+        return GCNSubgraphModel(
+            dim_feats=x_node_feature_size,
+            dim_out=y_nodes_durations_len,
+            **final_params
         )

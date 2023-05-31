@@ -136,7 +136,7 @@ class Graph:
         if subgraph_count is None and subgraph_node_size is None:
             raise ValueError("Invalid subgraph_count and subgraph_node_size, cannot be None simultaneously.")
         if subgraph_count is not None:
-            subgraph_node_size = len(self.nodes) // subgraph_count
+            subgraph_node_size = math.ceil(float(len(self.nodes)) / subgraph_count)
         elif subgraph_node_size is not None:
             subgraph_count = math.ceil(float(len(self.nodes)) / subgraph_node_size)
         subgraphs = list()

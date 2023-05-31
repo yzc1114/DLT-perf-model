@@ -7,11 +7,13 @@ from torch.optim import Adam, RMSprop, SGD
 
 class ModelType(Enum):
     GBDT = 0
-    GNN = 1
+    GCNSubgraph = 1
     MLP = 2
-    PerfNet = 3
+    PerfNet = 4
     RNN = 4
     TransformerRegression = 5
+    LSTM = 6
+    GCNGrouping = 7
     MLPTestGrouping = 100
     MLPTestSubgraph = 101
 
@@ -35,12 +37,6 @@ class GPUType(Enum):
     RTX4090 = 2
     P40 = 3
     K80 = 4
-
-
-class DatasetType(Enum):
-    OP = 0
-    Grouping = 1
-    Subgraph = 2
 
 
 class OptimizerType(Enum):

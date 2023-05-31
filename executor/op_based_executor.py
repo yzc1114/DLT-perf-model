@@ -259,6 +259,14 @@ class MLP_OPBasedExecutor(OPBasedExecutor):
     def _init_model_type(self) -> ModelType:
         return ModelType.MLP
 
+    @staticmethod
+    def default_model_params() -> Dict[str, Any]:
+        return {}
+
+    @staticmethod
+    def grid_search_model_params() -> Dict[str, List]:
+        return {}
+
     def _init_model(self) -> MModule | Any:
         sample_x_dict = self.preprocessed_train_ds.features[0]
         sample_y_dict = self.preprocessed_eval_ds.labels[0]
@@ -269,6 +277,14 @@ class MLP_OPBasedExecutor(OPBasedExecutor):
 class PerfNet_OPBasedExecutor(OPBasedExecutor):
     def _init_model_type(self) -> ModelType:
         return ModelType.PerfNet
+
+    @staticmethod
+    def default_model_params() -> Dict[str, Any]:
+        return {}
+
+    @staticmethod
+    def grid_search_model_params() -> Dict[str, List]:
+        return {}
 
     def _init_model(self) -> MModule | Any:
         processed_train_ds = self.preprocessed_train_ds
@@ -283,17 +299,33 @@ class GBDT_OPBasedExecutor(OPBasedExecutor):
     def _check_params(self):
         assert self.conf.dataset_params["duration_summed"]
 
+    @staticmethod
+    def default_model_params() -> Dict[str, Any]:
+        return {
+            "n_estimators": 500,
+            "max_depth": 4,
+            "min_samples_split": 4,
+            "learning_rate": 0.001,
+            "loss": "squared_error",
+        }
+
+    @staticmethod
+    def grid_search_model_params() -> Dict[str, List]:
+        return {
+            "n_estimators": [250, 500],
+            "max_depth": [4, 8],
+            "min_samples_split": [4, 6],
+            "learning_rate": [0.001],
+            "loss": ["squared_error"],
+        }
+
     def _init_model(self) -> MModule | Any:
         conf = self.conf
         config_params = conf.model_params
-        model_params = {
-            "n_estimators": config_params.get("n_estimators", 500),
-            "max_depth": config_params.get("max_depth", 4),
-            "min_samples_split": config_params.get("min_samples_split", 4),
-            "learning_rate": config_params.get("learning_rate", 0.001),
-            "loss": "squared_error",
-        }
-        reg = ensemble.GradientBoostingRegressor(**model_params)
+        final_params = self.default_model_params()
+        for k, v in final_params.items():
+            final_params[k] = config_params.get(k, v)
+        reg = ensemble.GradientBoostingRegressor(**final_params)
         return reg
 
     @staticmethod

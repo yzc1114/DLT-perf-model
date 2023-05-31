@@ -2,11 +2,12 @@ from abc import abstractmethod
 from collections import defaultdict
 from functools import lru_cache
 from typing import Dict
-from typing import Tuple, Any
+from typing import Tuple, Any, List
 
 import numpy as np
 import torch
-import torch.nn
+import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim
 from torch.nn import MSELoss
 
@@ -17,6 +18,7 @@ from executor.executor import Executor
 from executor.metric import MetricUtil
 from executor.util import nested_detach, pad_np_vectors
 from objects import ModelType
+from .gcn import GCNLayer
 
 
 class GroupingBasedExecutor(Executor):
@@ -160,10 +162,11 @@ class GroupingBasedExecutor(Executor):
         processed_labels = list()
         for i, data in enumerate(ds):
             feature, label = data
+            x_adjacency_matrix = np.array(feature["x_adjacency_metrix"]).astype(np.float32)
             processed_features.append({
                 "x_graph_id": feature["x_graph_id"],
                 "x_feature_matrix": graph_feature_arrays[i],
-                "x_adjacency_metrix": feature["x_adjacency_metrix"]
+                "x_adjacency_metrix": x_adjacency_matrix
             })
             processed_labels.append({
                 "y_graph_id": label["y_graph_id"],
@@ -204,6 +207,14 @@ class MLPTest_GroupingBasedExecutor(GroupingBasedExecutor):
     def _init_model_type(self) -> ModelType:
         return ModelType.MLPTestGrouping
 
+    @staticmethod
+    def default_model_params() -> Dict[str, Any]:
+        return {}
+
+    @staticmethod
+    def grid_search_model_params() -> Dict[str, List]:
+        return {}
+
     def _init_model(self) -> MModule | Any:
         sample_x_dict = self.preprocessed_train_ds.features[0]
         sample_y_dict = self.preprocessed_train_ds.labels[0]
@@ -232,3 +243,70 @@ class MLPTest_GroupingModel(MModule):
         graph_duration = Y["y_graph_duration"]
         loss = self.loss_fn(outputs, graph_duration)
         return loss
+
+
+class GCNGroupingModel(MModule):
+    def __init__(self, dim_feats, dim_h, y_graph_duration_len, n_layers, dropout):
+        super(GCNGroupingModel, self).__init__()
+        self.layers = nn.ModuleList()
+        # input layer
+        self.layers.append(GCNLayer(dim_feats, dim_h, F.relu, 0))
+        # hidden layers
+        for i in range(n_layers - 1):
+            self.layers.append(GCNLayer(dim_h, dim_h, F.relu, dropout))
+        # output layer
+        self.layers.append(GCNLayer(dim_h, y_graph_duration_len, None, dropout))
+        self.loss_fn = MSELoss()
+
+    def forward(self, X):
+        adj, features = X["x_adjacency_metrix"], X["x_feature_matrix"]
+        h = features
+        for layer in self.layers:
+            h = layer(adj, h)
+        graph_duration = torch.sum(h, dim=[1])
+        return graph_duration
+
+    def compute_loss(self, outputs, Y) -> torch.Tensor:
+        y_graph_duration = Y["y_graph_duration"]
+        loss = self.loss_fn(outputs, y_graph_duration)
+        return loss
+
+
+class GCNGroupingBasedExecutor(GroupingBasedExecutor):
+    def _init_model_type(self) -> ModelType:
+        return ModelType.GCNGrouping
+
+    @staticmethod
+    def default_model_params() -> Dict[str, Any]:
+        return {
+            "dim_h": None,
+            "n_layers": 2,
+            "dropout": 0.1
+        }
+
+    @staticmethod
+    def grid_search_model_params() -> Dict[str, List]:
+        return {
+            "dim_h": [32, 64],
+            "n_layers": [2, 3],
+            "dropout": [0.1]
+        }
+
+    def _init_model(self) -> MModule | Any:
+        sample_x_dict = self.preprocessed_train_ds.features[0]
+        sample_y_dict = self.preprocessed_train_ds.labels[0]
+        x_node_feature_size = len(sample_x_dict["x_feature_matrix"][0])
+        y_graph_duration_len = len(sample_y_dict["y_graph_duration"])
+        model_params = self.conf.model_params
+
+        final_model_params = self.default_model_params()
+        default_dim_h = x_node_feature_size if final_model_params.get("dim_h") is None else final_model_params.get(
+            "dim_h")
+        final_model_params["dim_h"] = model_params.get("dim_h", default_dim_h)
+        final_model_params["n_layers"] = model_params.get("n_layers", final_model_params["n_layers"])
+        final_model_params["dropout"] = model_params.get("dropout", final_model_params["dropout"])
+        return GCNGroupingModel(
+            dim_feats=x_node_feature_size,
+            y_graph_duration_len=y_graph_duration_len,
+            **final_model_params
+        )
