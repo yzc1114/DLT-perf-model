@@ -1,0 +1,14 @@
+{
+  "model": "TransformerRegression",
+  "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
+  "dataset_normalization": "Standard",
+  "all_seed": 42,
+  "dataset_params": {
+    "duration_summed": false
+  },
+  "dataset_dummy": true,
+  "batch_size": 64,
+  "learning_rate": 1e-3,
+  "epochs": 200,
+  "optimizer": "Adam"
+}

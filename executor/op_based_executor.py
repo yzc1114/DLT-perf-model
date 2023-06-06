@@ -17,7 +17,7 @@ from sklearn import ensemble
 from sklearn.metrics import mean_squared_error
 from torch.nn import MSELoss, ReLU
 
-from config import TrainConfig, EvalConfig
+from config import Config
 from data.dataset import MDataset
 from executor.base_module import MModule
 from executor.executor import Executor
@@ -27,7 +27,7 @@ from objects import ModelType
 
 
 class OPBasedExecutor(Executor):
-    def __init__(self, conf: TrainConfig | EvalConfig | None = None):
+    def __init__(self, conf: Config | None = None):
         super().__init__(conf)
         self.scalers: Tuple | None = None
 
@@ -289,7 +289,7 @@ class PerfNet_OPBasedExecutor(OPBasedExecutor):
     def _init_model(self) -> MModule | Any:
         processed_train_ds = self.preprocessed_train_ds
         sample_y_dict = processed_train_ds.labels[0]
-        return PerfNetModel(output_dimension=len(sample_y_dict["y_node_duration"]))
+        return PerfNetModel(output_dimension=len(sample_y_dict["y_node_durations"]))
 
 
 class GBDT_OPBasedExecutor(OPBasedExecutor):
@@ -366,10 +366,12 @@ class GBDT_OPBasedExecutor(OPBasedExecutor):
         logging.info(f"{self.model_type} ends training for {second_dur} seconds.")
         metrics = self._evaluate(model)
         eval_loss = metrics["eval_loss"]
-        self.train_records["eval_metrics"] = {
-            "metrics": metrics,
-            "duration": second_dur
-        }
+        self.train_records["eval_metrics"] = [
+            {
+                "metrics": metrics,
+                "duration": second_dur
+            }
+        ]
         self.save_model(model=model, curr_steps=0, curr_loss_value=eval_loss)
 
     @staticmethod

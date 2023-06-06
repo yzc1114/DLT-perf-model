@@ -11,7 +11,7 @@ import torch.nn.functional as F
 import torch.optim
 from torch.nn import MSELoss
 
-from config import TrainConfig, EvalConfig
+from config import Config
 from data.dataset import MDataset
 from executor.base_module import MModule
 from executor.executor import Executor
@@ -22,7 +22,7 @@ from .gcn import GCNLayer
 
 
 class GroupingBasedExecutor(Executor):
-    def __init__(self, conf: TrainConfig | EvalConfig | None = None):
+    def __init__(self, conf: Config | None = None):
         super().__init__(conf)
         self.scalers: Tuple | None = None
 

@@ -13,7 +13,7 @@ import torch.nn.functional as F
 import torch.optim
 from torch.nn import MSELoss, LSTM
 
-from config import TrainConfig, EvalConfig
+from config import Config
 from data import GraphNode, Graph
 from data.dataset import MDataset
 from executor.base_module import MModule
@@ -22,11 +22,11 @@ from executor.metric import MetricUtil
 from executor.util import nested_detach, pad_np_vectors
 from objects import ModelType
 from .gcn import GCNLayer
-from .transformer import TransformerRegressionModel
+from .transformer import TransformerModel
 
 
 class SubgraphBasedExecutor(Executor):
-    def __init__(self, conf: TrainConfig | EvalConfig | None = None):
+    def __init__(self, conf: Config | None = None):
         super().__init__(conf)
         self.scalers: Tuple | None = None
 
@@ -297,9 +297,9 @@ class MLPTest_SubgraphModel(MModule):
         return loss
 
 
-class TransformerRegressionSubgraphBasedExecutor(SubgraphBasedExecutor):
+class TransformerSubgraphBasedExecutor(SubgraphBasedExecutor):
     def _init_model_type(self) -> ModelType:
-        return ModelType.TransformerRegression
+        return ModelType.Transformer
 
     @staticmethod
     def default_model_params() -> Dict[str, Any]:
@@ -337,7 +337,7 @@ class TransformerRegressionSubgraphBasedExecutor(SubgraphBasedExecutor):
             logging.info(f"Transformer nhead set to {nhead}.")
             self.conf.model_params["nhead"] = nhead
 
-        return TransformerRegressionModel(
+        return TransformerModel(
             d_model=x_node_feature_size,
             output_d=nodes_durations_len,
             **final_params

@@ -62,7 +62,7 @@ class PositionalEncoder(nn.Module):
         return self.dropout(x)
 
 
-class TransformerRegressionModel(MModule):
+class TransformerModel(MModule):
     def __init__(self, d_model: int = 11, nhead: int = 8, d_hid: int = 2048,
                  nlayers: int = 6, dropout: float = 0.5, output_d: int = 3):
         super().__init__()

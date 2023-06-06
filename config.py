@@ -24,7 +24,6 @@ class JsonifyAble:
                 d[attr_name] = attr
         return d
 
-
 class DatasetConfigMixin:
     def __init__(self, dataset_config_js, **kwargs):
         super().__init__(**kwargs)
@@ -76,14 +75,25 @@ class DeviceConfigMixin:
             self.device = device_config_js.get("device_type", "cpu")
 
 
-class TrainConfig(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, JsonifyAble):
+class Config(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, JsonifyAble):
+
+    @staticmethod
+    def from_dict(d):
+        return Config(d)
+
+    @staticmethod
+    def from_file(config_filepath):
+        with open(config_filepath) as f:
+            config_js = json.load(f)
+        return Config.from_dict(config_js)
+
     def __init__(self, train_config_js):
         super().__init__(dataset_config_js=train_config_js,
                          model_config_js=train_config_js,
                          device_config_js=train_config_js)
         # training
         self.all_seed = train_config_js.get("all_seed", 42)
-        self.num_train_epochs = train_config_js.get("num_train_epochs", 100)
+        self.num_train_epochs = train_config_js.get("epochs", 50)
         self.batch_size = train_config_js.get("batch_size", 64)
         self.logging_steps = train_config_js.get("logging_steps", 100)
         self.evaluation_strategy = train_config_js.get("evaluation_strategy", "epoch")
@@ -95,30 +105,104 @@ class TrainConfig(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, Jsoni
         self.learning_rate = train_config_js.get("learning_rate", 1e-3)
 
 
-class EvalConfig(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, JsonifyAble):
-    def __init__(self, eval_config_js):
-        super().__init__(model_config_js=eval_config_js,
-                         dataset_config_js=eval_config_js,
-                         device_config_js=eval_config_js)
-        self.all_seed = eval_config_js.get("all_seed", 42)
-        self.batch_size: int = eval_config_js.get("batch_size", 64)
 
-
-class Config:
-    def __init__(self, config_file):
-        with open(config_file) as f:
-            self.config_js = json.load(f)
-
-        def load_configs(config_type):
-            config_cls = {
-                "train": TrainConfig,
-                "eval": EvalConfig
-            }
-            return [config_cls[config_type](sub_config_js) for sub_config_js in self.config_js[config_type]]
-
-        self.train_configs: List[TrainConfig] = list()
-        self.eval_configs: List[EvalConfig] = list()
-        if "train" in self.config_js:
-            self.train_configs = load_configs("train")
-        if "eval" in self.config_js:
-            self.eval_configs = load_configs("eval")
+configs = {
+    ModelType.MLP: {
+        "model": "MLP",
+        "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
+        "dataset_normalization": "Standard",
+        "all_seed": 42,
+        "dataset_params": {
+            "duration_summed": False
+        },
+        "dataset_dummy": True,
+        "batch_size": 64,
+        "learning_rate": 1e-3,
+        "epochs": 20,
+        "optimizer": "Adam"
+    },
+    ModelType.PerfNet: {
+        "model": "PerfNet",
+        "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
+        "dataset_normalization": "Standard",
+        "all_seed": 42,
+        "dataset_params": {
+            "duration_summed": False
+        },
+        "dataset_dummy": True,
+        "batch_size": 64,
+        "learning_rate": 1e-3,
+        "epochs": 20,
+        "optimizer": "Adam"
+    },
+    ModelType.GBDT: {
+        "model": "PerfNet",
+        "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
+        "dataset_normalization": "Standard",
+        "all_seed": 42,
+        "dataset_params": {
+            "duration_summed": True
+        },
+        "dataset_dummy": True,
+        "batch_size": 64,
+        "learning_rate": 1e-3,
+        "epochs": 20,
+        "optimizer": "Adam"
+    },
+    ModelType.LSTM: {
+        "model": "LSTM",
+        "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
+        "dataset_normalization": "Standard",
+        "all_seed": 42,
+        "dataset_params": {
+            "duration_summed": False
+        },
+        "dataset_dummy": True,
+        "batch_size": 64,
+        "learning_rate": 1e-3,
+        "epochs": 20,
+        "optimizer": "Adam"
+    },
+    ModelType.GCNGrouping: {
+        "model": "GCNGrouping",
+        "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
+        "dataset_normalization": "Standard",
+        "all_seed": 42,
+        "dataset_params": {
+            "duration_summed": False
+        },
+        "dataset_dummy": True,
+        "batch_size": 64,
+        "learning_rate": 1e-3,
+        "epochs": 20,
+        "optimizer": "Adam"
+    },
+    ModelType.GCNSubgraph: {
+        "model": "GCNGrouping",
+        "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
+        "dataset_normalization": "Standard",
+        "all_seed": 42,
+        "dataset_params": {
+            "duration_summed": False
+        },
+        "dataset_dummy": True,
+        "batch_size": 64,
+        "learning_rate": 1e-3,
+        "epochs": 20,
+        "optimizer": "Adam"
+    },
+    ModelType.Transformer: {
+        "model": "Transformer",
+        "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
+        "dataset_normalization": "Standard",
+        "all_seed": 42,
+        "dataset_params": {
+            "duration_summed": False
+        },
+        "dataset_dummy": True,
+        "batch_size": 64,
+        "learning_rate": 1e-3,
+        "epochs": 20,
+        "optimizer": "Adam"
+    },
+}

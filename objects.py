@@ -3,15 +3,17 @@ from functools import lru_cache
 from typing import List
 
 from torch.optim import Adam, RMSprop, SGD
+import pathlib
 
+ckpts_dir = pathlib.Path(__file__).parent / 'ckpts'
+logs_dir = pathlib.Path(__file__).parent / 'logs'
 
 class ModelType(Enum):
     GBDT = 0
     GCNSubgraph = 1
     MLP = 2
     PerfNet = 4
-    RNN = 4
-    TransformerRegression = 5
+    Transformer = 5
     LSTM = 6
     GCNGrouping = 7
     MLPTestGrouping = 100

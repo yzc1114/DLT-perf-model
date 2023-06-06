@@ -14,22 +14,19 @@ from torch.optim.lr_scheduler import LRScheduler, ConstantLR
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from config import TrainConfig, EvalConfig
+from config import Config
 from data.dataset import MDataset, load_graphs
-from objects import ModelType
+from objects import ModelType, ckpts_dir
 from .base_module import MModule
 from .util import nested_detach
 
-ckpts_dir = pathlib.Path(__file__).parent.parent / 'ckpts'
-logs_dir = pathlib.Path(__file__).parent.parent / 'logs'
-
 
 class Executor(ABC):
-    def __init__(self, conf: TrainConfig | EvalConfig):
+    def __init__(self, conf: Config):
         self.model_type: ModelType = self._init_model_type()
-        if isinstance(conf, TrainConfig):
+        if isinstance(conf, Config):
             self._init_save_path()
-        self.conf: TrainConfig | EvalConfig = conf
+        self.conf: Config = conf
         self.train_graphs = load_graphs(self.conf.dataset_environment,
                                         train_or_val="train",
                                         dummy=self.conf.dataset_dummy)
@@ -73,7 +70,7 @@ class Executor(ABC):
             torch.backends.cudnn.benchmark = False
         # Set a fixed value for the hash seed
         os.environ["PYTHONHASHSEED"] = str(seed)
-        print(f"Random seed set as {seed}")
+        logging.info(f"Random seed set as {seed}")
 
     def _check_params(self):
         pass
