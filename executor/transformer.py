@@ -77,6 +77,17 @@ class TransformerModel(MModule):
         self.decoder = nn.Linear(d_model, output_d)
         self.loss_fn = MSELoss()
 
+    def prepare_transfer(self, freeze_layers: int | None = None, reinit_proj: bool = True, **kwargs):
+        if freeze_layers is not None:
+            layers = self.transformer_encoder.layers
+            if freeze_layers > len(layers):
+                raise ValueError(f"freeze_layers ({freeze_layers}) must be less than the number of layers ")
+            for layer in layers[freeze_layers:]:
+                for param in layer.parameters():
+                    param.requires_grad = False
+        if reinit_proj:
+            self.decoder.reset_parameters()
+
     def forward(self, X: Dict) -> Tensor:
         """
         Arguments:

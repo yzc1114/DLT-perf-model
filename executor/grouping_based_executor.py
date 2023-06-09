@@ -177,7 +177,7 @@ class GroupingBasedExecutor(Executor):
         return ds
 
     def _evaluate(self, model) -> Dict[str, float]:
-        input_batches, output_batches = self._dl_evaluate_pred(model)
+        input_batches, output_batches, eval_loss = self._dl_evaluate_pred(model)
 
         batches_len = len(input_batches)
 
@@ -200,7 +200,7 @@ class GroupingBasedExecutor(Executor):
                 graph_duration = graph_durations[i].item()
                 graph_id_to_duration_pred[graph_id] = graph_duration
         duration_metrics = MetricUtil.compute_duration_metrics(self.eval_graphs, graph_id_to_duration_pred)
-        return duration_metrics
+        return {"eval_loss": eval_loss, **duration_metrics}
 
 
 class MLPTest_GroupingBasedExecutor(GroupingBasedExecutor):

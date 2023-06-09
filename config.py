@@ -1,5 +1,5 @@
 import json
-from typing import List
+from typing import Dict
 
 import torch.cuda
 from sklearn import preprocessing
@@ -23,6 +23,13 @@ class JsonifyAble:
                     attr is None:
                 d[attr_name] = attr
         return d
+
+
+class TransferConfigMixin:
+    def __init__(self, transfer_config_js, **kwargs):
+        super().__init__(**kwargs)
+        self.transfer_params: Dict | None = transfer_config_js.get("transfer_params", None)
+
 
 class DatasetConfigMixin:
     def __init__(self, dataset_config_js, **kwargs):
@@ -75,7 +82,7 @@ class DeviceConfigMixin:
             self.device = device_config_js.get("device_type", "cpu")
 
 
-class Config(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, JsonifyAble):
+class Config(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, TransferConfigMixin, JsonifyAble):
 
     @staticmethod
     def from_dict(d):
@@ -90,14 +97,15 @@ class Config(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, JsonifyAbl
     def __init__(self, train_config_js):
         super().__init__(dataset_config_js=train_config_js,
                          model_config_js=train_config_js,
-                         device_config_js=train_config_js)
+                         device_config_js=train_config_js,
+                         transfer_config_js=train_config_js)
         # training
         self.all_seed = train_config_js.get("all_seed", 42)
         self.num_train_epochs = train_config_js.get("epochs", 50)
         self.batch_size = train_config_js.get("batch_size", 64)
         self.logging_steps = train_config_js.get("logging_steps", 100)
         self.evaluation_strategy = train_config_js.get("evaluation_strategy", "epoch")
-        self.eval_steps = train_config_js.get("eval_steps", 50)
+        self.eval_steps = train_config_js.get("eval_steps", 100)
         self.load_best_model_at_end = train_config_js.get("load_best_model_at_end", True)
         # self.save_strategy = train_config_js.get("save_strategy", "epoch")
         self.optimizer_cls_str = train_config_js.get("optimizer", "Adam")
@@ -105,8 +113,7 @@ class Config(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, JsonifyAbl
         self.learning_rate = train_config_js.get("learning_rate", 1e-3)
 
 
-
-configs = {
+train_configs = {
     ModelType.MLP: {
         "model": "MLP",
         "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
@@ -118,7 +125,7 @@ configs = {
         "dataset_dummy": True,
         "batch_size": 64,
         "learning_rate": 1e-3,
-        "epochs": 20,
+        "epochs": 100,
         "optimizer": "Adam"
     },
     ModelType.PerfNet: {
@@ -132,7 +139,7 @@ configs = {
         "dataset_dummy": True,
         "batch_size": 64,
         "learning_rate": 1e-3,
-        "epochs": 20,
+        "epochs": 100,
         "optimizer": "Adam"
     },
     ModelType.GBDT: {
@@ -146,7 +153,7 @@ configs = {
         "dataset_dummy": True,
         "batch_size": 64,
         "learning_rate": 1e-3,
-        "epochs": 20,
+        "epochs": 100,
         "optimizer": "Adam"
     },
     ModelType.LSTM: {
@@ -160,7 +167,7 @@ configs = {
         "dataset_dummy": True,
         "batch_size": 64,
         "learning_rate": 1e-3,
-        "epochs": 20,
+        "epochs": 100,
         "optimizer": "Adam"
     },
     ModelType.GCNGrouping: {
@@ -174,7 +181,7 @@ configs = {
         "dataset_dummy": True,
         "batch_size": 64,
         "learning_rate": 1e-3,
-        "epochs": 20,
+        "epochs": 100,
         "optimizer": "Adam"
     },
     ModelType.GCNSubgraph: {
@@ -188,7 +195,7 @@ configs = {
         "dataset_dummy": True,
         "batch_size": 64,
         "learning_rate": 1e-3,
-        "epochs": 20,
+        "epochs": 100,
         "optimizer": "Adam"
     },
     ModelType.Transformer: {
@@ -202,7 +209,29 @@ configs = {
         "dataset_dummy": True,
         "batch_size": 64,
         "learning_rate": 1e-3,
-        "epochs": 20,
+        "epochs": 10,
         "optimizer": "Adam"
     },
+}
+
+transfer_configs = {
+    ModelType.Transformer: {
+        "model": "Transformer",
+        "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
+        "dataset_normalization": "Standard",
+        "all_seed": 42,
+        "dataset_params": {
+            "duration_summed": False
+        },
+        "transfer_params": {
+            "freeze_layers": 3,
+            "reinit_proj": True
+        },
+        "dataset_dummy": True,
+        "batch_size": 64,
+        "learning_rate": 1e-3,
+        "epochs": 10,
+        "optimizer": "Adam",
+        "resume_from_ckpt": "2023-06-09_14-57-45/ckpt_300.pth"
+    }
 }

@@ -1,21 +1,22 @@
+import json
 import logging
 import time
 from itertools import product
+from typing import List, Dict
 
 import numpy as np
-import json
 
-from objects import ModelType
-
-from config import Config, configs
+from config import Config, train_configs, transfer_configs
 from executor import get_executor_cls
 from logger import init_logging
+from objects import ModelType
 
 init_logging()
 
 
-def launch_grid_search(train_model: ModelType):
-    conf_dict = configs[train_model]
+def launch_grid_search(train_model: ModelType, _configs: Dict[ModelType, Dict], on_common_params: bool = True,
+                       model_specific_gs_params_name="model_params"):
+    conf_dict = _configs[train_model]
     executor_cls = get_executor_cls(model_type=train_model)
 
     grid_search_params = dict()
@@ -24,12 +25,18 @@ def launch_grid_search(train_model: ModelType):
             grid_search_params[k] = [v]
         else:
             grid_search_params[k] = v
+        if not on_common_params:
+            grid_search_params[k] = [grid_search_params[k][0]]
     grid_search_item_lens = list((len(v) for v in grid_search_params.values()))
-    for k, v in executor_cls.grid_search_model_params().items():
+
+    model_specific_gs_params = getattr(executor_cls, f"grid_search_{model_specific_gs_params_name}")()
+    for k, v in model_specific_gs_params.items():
         grid_search_item_lens.append(len(v))
     total_search_items = np.prod(grid_search_item_lens)
 
-    logging.info(f"{train_model} grid search total search items: {total_search_items}")
+    logging.info(
+        f"{train_model} grid search on common params: {on_common_params}, model specific grid search params name: {model_specific_gs_params}.")
+    logging.info(f"total search items: {total_search_items}.")
 
     search_param_keys = sorted(grid_search_params.keys())
     search_items = [grid_search_params[k] for k in search_param_keys]
@@ -46,15 +53,14 @@ def launch_grid_search(train_model: ModelType):
             curr_conf[search_param_key] = search_item
 
         # model param grid search params. specialized to each model
-        grid_search_model_params = executor_cls.grid_search_model_params()
-        model_param_search_keys = sorted(grid_search_model_params.keys())
-        model_param_search_items = [grid_search_model_params[k] for k in model_param_search_keys]
-        for model_param_search_item_combination in list(product(*model_param_search_items)):
-            curr_conf["model_params"] = dict()
+        keys = sorted(model_specific_gs_params.keys())
+        items = [model_specific_gs_params[k] for k in model_specific_gs_params]
+        for model_param_search_item_combination in list(product(*items)):
+            curr_conf[model_specific_gs_params_name] = dict()
             for i in range(len(model_param_search_item_combination)):
-                search_model_param_key = model_param_search_keys[i]
-                search_model_item = model_param_search_item_combination[i]
-                curr_conf["model_params"][search_model_param_key] = search_model_item
+                search_key = keys[i]
+                search_item = model_param_search_item_combination[i]
+                curr_conf[model_specific_gs_params_name][search_key] = search_item
 
             # conf established, launch training
             conf = Config(curr_conf)
@@ -67,14 +73,14 @@ def launch_grid_search(train_model: ModelType):
                 f'{train_model} grid search conf {curr_conf_idx}/{total_search_items} = {json.dumps(conf.to_dict(), indent="    ")}'
             )
             executor = executor_cls(conf=Config(curr_conf))
-            # executor.train()
+            executor.train()
             train_over_time = time.time()
             logging.info(
                 f"{train_model} grid search {curr_conf_idx}/{total_search_items} done. training duration: {train_over_time - now:.2f}s")
 
 
-def launch_single_train(train_model: ModelType):
-    conf_dict = configs[train_model]
+def launch_single_train(train_model: ModelType, _configs: Dict[ModelType, Dict]):
+    conf_dict = _configs[train_model]
     confirmed_params = dict()
     for k, v in conf_dict.items():
         if not isinstance(v, list):
@@ -91,19 +97,13 @@ def launch_single_train(train_model: ModelType):
     logging.info(f"{train_model} single train ends. training duration = {train_over_time - now:.2f}s.")
 
 
-def launch_train(mode="single-train"):
-    if mode == "single-train":
-        launch_func = launch_single_train
-    elif mode == "grid-search":
-        launch_func = launch_grid_search
-    else:
-        raise ValueError(f"Unknown launch mode: {mode}")
-    for i, train_model in enumerate(train_models):
+def launch_train(models: List[ModelType], launch_lambda):
+    for i, train_model in enumerate(models):
         now = time.time()
-        logging.info(f"launching {train_model} with {mode} starts. rest models: {[m.name for m in train_models[i+1:]]}")
-        launch_func(train_model)
+        logging.info(f"launching {train_model} starts. rest models: {[m.name for m in train_models[i + 1:]]}")
+        launch_lambda(train_model)
         launch_over = time.time()
-        logging.info(f"launching {train_model} with {mode} ends. launching duration = {launch_over - now:.2f}s.")
+        logging.info(f"launching {train_model} ends. launching duration = {launch_over - now:.2f}s.")
 
 
 train_models = [
@@ -116,8 +116,38 @@ train_models = [
     ModelType.GCNGrouping
 ]
 
+transfer_models = [
+    ModelType.Transformer,
+]
 
+tasks = {
+    "single_train",
+    "grid_search",
+    "single_transfer",
+    "grid_search_transfer"
+}
 
 if __name__ == '__main__':
-    launch_train(mode="single-train")
-    # launch_train(mode="grid-search")
+    if "single_train" in tasks:
+        # launch single train
+        launch_train(models=train_models,
+                     launch_lambda=lambda train_model: launch_single_train(train_model, train_configs))
+
+    if "grid_search" in tasks:
+        # launch grid search on model params
+        launch_train(models=train_models,
+                     launch_lambda=lambda train_model: launch_grid_search(train_model, train_configs,
+                                                                          on_common_params=True,
+                                                                          model_specific_gs_params_name="model_params"))
+
+    if "single_transfer" in tasks:
+        # launch single transfer train
+        launch_train(models=transfer_models,
+                     launch_lambda=lambda train_model: launch_single_train(train_model, transfer_configs))
+
+    if "grid_search_transfer" in tasks:
+        # launch grid search on transfer params
+        launch_train(models=transfer_models,
+                     launch_lambda=lambda train_model: launch_grid_search(train_model, transfer_configs,
+                                                                          on_common_params=False,
+                                                                          model_specific_gs_params_name="transfer_params"))

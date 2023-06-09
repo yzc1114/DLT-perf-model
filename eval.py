@@ -1,18 +1,8 @@
-import logging
-import os
-import pathlib
-import time
-from itertools import product
+from typing import Dict, List
 
-import numpy as np
-import json
-from typing import Dict
-
-from objects import ModelType, ckpts_dir
-
-from config import Config, configs
-from executor import get_executor_cls
+from ckpt_loader import load_train_records, TrainRecord
 from logger import init_logging
+from objects import ModelType
 
 init_logging()
 
@@ -26,52 +16,23 @@ train_models = [
     ModelType.GCNGrouping
 ]
 
-class TrainRecord:
-
-    class EvalMetric:
-        def __init__(self, d):
-            self.train_loss: d.get("train_loss", 0)
-            self.metrics: Dict = d.get("metrics", dict())
-            self.step: int = d.get("step", 0)
-            self.duration: float = d.get("duration", 0)
-
-    def __init__(self, ckpt_dir: pathlib.Path, d: Dict):
-        self.ckpt_dir: pathlib.Path = ckpt_dir
-        self.raw = d
-        self.train_config: Dict = d["train_config"]
-        train_records_dict = d["train_records"]
-        eval_metrics_raw = train_records_dict["eval_metrics"]
-        self.eval_metrics = [
-            TrainRecord.EvalMetric(eval_metric) for eval_metric in eval_metrics_raw
-        ]
-
-    def optimal_eval_metric(self, metric_name="MSE", standard="min"):
-        if standard == "min":
-            reduce_func = min
-        elif standard == "max":
-            reduce_func = max
-        else:
-            raise ValueError(f"Unknown standard: {standard}")
-        return reduce_func(self.eval_metrics, key=lambda x: x.metrics[metric_name])
+records: Dict[ModelType, List[TrainRecord]] = load_train_records(train_models)
 
 
-def load_train_records():
-    train_records = dict()
+def get_best_records(metric_name="MSE") -> Dict[ModelType, TrainRecord]:
+    best_records = dict()
     for train_model in train_models:
-        train_records[train_model] = list()
-        train_model_dir = ckpts_dir / train_model.name
-        if not train_model_dir.exists():
-            continue
-        for dirname in os.listdir(str(train_model_dir)):
-            ckpt_dir = train_model_dir / dirname
-            if not ckpt_dir.is_dir():
+        best_records[train_model] = None
+        for record in records[train_model]:
+            record_eval_metric = record.optimal_eval_metric(metric_name).metrics[metric_name]
+            if best_records[train_model] is None:
+                best_records[train_model] = record
                 continue
-            train_record_path = ckpt_dir / "train_records.json"
-            with open(str(train_record_path), "r") as d:
-                d = json.load(d)
-                train_records[train_model].append(TrainRecord(ckpt_dir=ckpt_dir, d=d))
-    return train_records
+            best_record_eval_metric = best_records[train_model].optimal_eval_metric(metric_name).metrics[metric_name]
+            if record_eval_metric < best_record_eval_metric:
+                best_records[train_model] = record
+    return best_records
 
 
 if __name__ == '__main__':
-    load_train_records()
+    load_train_records(train_models)

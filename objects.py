@@ -1,12 +1,13 @@
+import pathlib
 from enum import Enum
 from functools import lru_cache
 from typing import List
 
 from torch.optim import Adam, RMSprop, SGD
-import pathlib
 
 ckpts_dir = pathlib.Path(__file__).parent / 'ckpts'
 logs_dir = pathlib.Path(__file__).parent / 'logs'
+
 
 class ModelType(Enum):
     GBDT = 0

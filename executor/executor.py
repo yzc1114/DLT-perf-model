@@ -7,6 +7,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import Tuple, Any, Dict, List
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch.optim
 from torch.nn import Module
@@ -24,14 +25,13 @@ from .util import nested_detach
 class Executor(ABC):
     def __init__(self, conf: Config):
         self.model_type: ModelType = self._init_model_type()
+        self.model_ckpts_dir = ckpts_dir / self.model_type.name
         if isinstance(conf, Config):
             self._init_save_path()
         self.conf: Config = conf
         self.train_graphs = load_graphs(self.conf.dataset_environment,
-                                        train_or_val="train",
                                         dummy=self.conf.dataset_dummy)
         self.eval_graphs = load_graphs(self.conf.dataset_environment,
-                                       train_or_val="val",
                                        dummy=self.conf.dataset_dummy)
         self.set_seed()
 
@@ -58,6 +58,10 @@ class Executor(ABC):
     def grid_search_model_params() -> Dict[str, List]:
         pass
 
+    @staticmethod
+    def grid_search_transfer_params() -> Dict[str, List] | None:
+        return None
+
     def set_seed(self):
         seed = self.conf.all_seed
         np.random.seed(seed)
@@ -82,7 +86,7 @@ class Executor(ABC):
     def _init_save_path(self):
         time_format = "%Y-%m-%d_%H-%M-%S"
         time_str = time.strftime(time_format)
-        self.save_path = str(ckpts_dir / self.model_type.name / time_str)
+        self.save_path = str(self.model_ckpts_dir / time_str)
 
     def _ensure_save_dir(self):
         p = pathlib.Path(self.save_path)
@@ -101,7 +105,7 @@ class Executor(ABC):
 
     def init_model(self) -> MModule | Any:
         if self.conf.resume_from_ckpt is not None:
-            ckpt_filepath = pathlib.Path(ckpts_dir, self.conf.resume_from_ckpt)
+            ckpt_filepath = pathlib.Path(self.model_ckpts_dir, self.conf.resume_from_ckpt)
             model = self._load_ckpt(ckpt_filepath)
             return model
         return self._init_model()
@@ -127,6 +131,8 @@ class Executor(ABC):
         processed_train_ds = self.preprocessed_train_ds
         train_dl = DataLoader(processed_train_ds, batch_size=self.conf.batch_size, shuffle=True)
         model = self.init_model()
+        if self.conf.transfer_params is not None:
+            model.prepare_transfer(**self.conf.transfer_params)
         model.train()
         curr_train_step = 0
         optimizer, lr_scheduler = self._create_optimizer_and_scheduler(model, len(train_dl))
@@ -154,10 +160,10 @@ class Executor(ABC):
                     model.eval()
                     metrics = self._evaluate(model)
                     logging.info(f"{self.model_type} train loss: {loss_value}, eval metrics: {metrics}")
+                    metrics["train_loss"] = loss_value
 
                     self.train_records.setdefault("eval_metrics", list())
                     self.train_records["eval_metrics"].append({
-                        "train_loss": loss_value,
                         "metrics": metrics,
                         "step": curr_train_step,
                         "duration": train_dur
@@ -165,6 +171,35 @@ class Executor(ABC):
                     self.save_model(model, curr_steps=curr_train_step, curr_loss_value=loss_value)
                     model.train()
             lr_scheduler.step()
+        self.save_train_plot()
+
+    def save_train_plot(self):
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+        eval_metrics = self.train_records["eval_metrics"]
+
+        def get_list(metric_key):
+            l = list()
+            for eval_metric in eval_metrics:
+                l.append(eval_metric["metrics"][metric_key])
+            return l
+
+        x_step = self.conf.eval_steps
+        X = [x_step * i for i in range(len(eval_metrics))]
+        # train loss, eval loss
+        line_plots = (
+            ["train_loss", "eval_loss"],
+            ["MRE"],
+            ["RMSE"]
+        )
+        for i, line_plot_keys in enumerate(line_plots):
+            ax = axes[i]
+            for key in line_plot_keys:
+                ax.plot(X, get_list(key), label=key)
+            ax.set_xlabel("steps")
+            ax.legend()
+        fig_save_path = str(pathlib.Path(self.save_path, "train_plot.png"))
+        fig.savefig(fig_save_path)
 
     def _init_preprocessed_dataset(self, mode="train") -> MDataset:
         mode_to_attr = {
@@ -198,14 +233,19 @@ class Executor(ABC):
         dl = DataLoader(processed_eval_ds, batch_size=self.conf.batch_size, shuffle=False)
         input_batches = list()
         output_batches = list()
+        eval_losses = list()
         for data in dl:
-            features, _ = data
+            features, labels = data
             with torch.no_grad():
                 outputs = model(features)
+            loss = model.compute_loss(outputs, labels)
+            eval_loss = float(nested_detach(loss))
+            eval_losses.append(eval_loss)
             input_batches.append(features)
             output_batches.append(outputs)
+        eval_loss = np.mean(eval_losses)
 
-        return input_batches, output_batches
+        return input_batches, output_batches, eval_loss
 
     def save_model(self, model, curr_steps: int, curr_loss_value: float):
         d = {
@@ -215,7 +255,7 @@ class Executor(ABC):
         self._ensure_save_dir()
         with open(pathlib.Path(self.save_path, "train_records.json"), "w") as f:
             json.dump(d, f, indent="\t")
-        self._save_ckpt_to(model, pathlib.Path(self.save_path, f"ckpt_{curr_steps}_{curr_loss_value}.pth"))
+        self._save_ckpt_to(model, pathlib.Path(self.save_path, f"ckpt_{curr_steps}.pth"))
 
     @staticmethod
     def _save_ckpt_to(model, filepath):

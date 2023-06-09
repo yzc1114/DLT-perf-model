@@ -26,9 +26,9 @@ class MDataset(Dataset):
 
 
 @lru_cache(maxsize=None)
-def load_graphs(environment: Environment, train_or_val: str = "train", dummy: bool = False) -> List[Graph]:
+def load_graphs(environment: Environment, dummy: bool = False) -> List[Graph]:
     if dummy:
-        return list(Graph.from_data(None, dummy=True, seed=seed) for seed in range(100))
+        return list(Graph.from_data(None, dummy=True, seed=seed) for seed in range(500))
     data_dir = pathlib.Path(datasets_path) / f"{environment}"
     # Load data from directory
     return list()
