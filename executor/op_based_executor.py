@@ -33,7 +33,7 @@ class OPBasedExecutor(Executor):
 
     @staticmethod
     def node_features(g,
-                      op_type_encoding="one-hot",
+                      op_type_encoding="frequency",
                       mode="complex",
                       encode_hyper_to_node: bool = True,
                       duration_summed: bool = False) -> Tuple[

@@ -31,14 +31,15 @@ class SubgraphBasedExecutor(Executor):
         self.scalers: Tuple | None = None
 
     @staticmethod
-    def subgraph_features(graph: Graph, subgraph_node_size: int = 10, **kwargs) -> Tuple[List[Dict], List[Dict]]:
+    def subgraph_features(graph: Graph, subgraph_node_size: int = 10, op_type_encoding: str = "frequency", **kwargs) -> \
+    Tuple[List[Dict], List[Dict]]:
         subgraphs, _ = graph.subgraphs(subgraph_node_size=subgraph_node_size)
         X, Y = list(), list()
 
         def subgraph_feature(nodes: List[GraphNode]):
             feature_matrix = list()
             for node in nodes:
-                feature = node.op.to_feature_array(mode="complex")
+                feature = node.op.to_feature_array(op_type_encoding=op_type_encoding, mode="complex")
                 feature = np.concatenate([feature, graph.graph_meta_feature()])
                 feature = np.array(feature)
                 feature_matrix.append(feature)
@@ -107,7 +108,10 @@ class SubgraphBasedExecutor(Executor):
         subgraph_feature_maxsize = 0
 
         for graph in graphs:
-            X_, Y_ = self.subgraph_features(graph, **conf.dataset_params)
+            X_, Y_ = self.subgraph_features(graph=graph,
+                                            subgraph_node_size=conf.dataset_subgraph_node_size,
+                                            op_type_encoding=conf.dataset_op_encoding,
+                                            **conf.dataset_params)
             for x in X_:
                 subgraph_feature_size = len(x["x_subgraph_feature"][0])
                 subgraph_feature_maxsize = max(subgraph_feature_maxsize, subgraph_feature_size)
@@ -303,11 +307,15 @@ class TransformerSubgraphBasedExecutor(SubgraphBasedExecutor):
 
     @staticmethod
     def default_model_params() -> Dict[str, Any]:
+        nhead: int = 8
+        d_hid: int = 512
+        nlayers: int = 6
+        dropout: float = 0.5
         return {
-            "nhead": 8,
-            "d_hid": 128,
-            "nlayers": 6,
-            "dropout": 0.05,
+            "nhead": nhead,
+            "d_hid": d_hid,
+            "nlayers": nlayers,
+            "dropout": dropout
         }
 
     @staticmethod

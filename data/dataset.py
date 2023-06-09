@@ -1,4 +1,5 @@
 import pathlib
+from collections import defaultdict
 from functools import lru_cache
 from typing import List, Dict
 
@@ -6,6 +7,7 @@ from torch.utils.data import Dataset
 
 from objects import Environment
 from .graph import Graph
+from .op import set_operator_freq
 
 datasets_path = str(pathlib.Path(__file__) / "datasets")
 
@@ -26,9 +28,25 @@ class MDataset(Dataset):
 
 
 @lru_cache(maxsize=None)
-def load_graphs(environment: Environment, dummy: bool = False) -> List[Graph]:
-    if dummy:
-        return list(Graph.from_data(None, dummy=True, seed=seed) for seed in range(500))
-    data_dir = pathlib.Path(datasets_path) / f"{environment}"
-    # Load data from directory
-    return list()
+def load_graphs(environment: Environment, train_or_eval: str = "train", dummy: bool = False) -> List[Graph]:
+    def _load_graphs():
+        if dummy:
+            return list(Graph.from_data(None, dummy=True, seed=seed) for seed in range(500))
+        data_dir = pathlib.Path(datasets_path) / f"{environment}"
+        # Load data from directory
+        return list()
+
+    graphs = _load_graphs()
+    if train_or_eval == "train":
+        # analyze op freq
+        op_freq = analyze_op_freq(graphs)
+        set_operator_freq(op_freq)
+    return graphs
+
+
+def analyze_op_freq(graphs: List[Graph]):
+    op_freq = defaultdict(int)
+    for g in graphs:
+        for node in g.nodes:
+            op_freq[node.op.operator_type] += 1
+    return op_freq

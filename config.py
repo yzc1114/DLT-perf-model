@@ -49,6 +49,9 @@ class DatasetConfigMixin:
             self.dataset_normalizer_cls = preprocessing.MinMaxScaler
         else:
             raise ValueError(f"Invalid dataset_normalization: {self.dataset_normalization}")
+        self.dataset_subgraph_node_size = dataset_config_js.get("dataset_subgraph_node_size", 10)
+        self.dataset_subgraph_grouping_count = dataset_config_js.get("dataset_subgraph_grouping_count", 10)
+        self.dataset_op_encoding = dataset_config_js.get("dataset_op_encoding", "frequency")
         self.dataset_params = dataset_config_js.get("dataset_params", dict())
         self.dataset_train_proportion = dataset_config_js.get("train_ds_proportion", 0.7)
         self.dataset_dummy = dataset_config_js.get("dataset_dummy", False)
@@ -113,11 +116,16 @@ class Config(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, TransferCo
         self.learning_rate = train_config_js.get("learning_rate", 1e-3)
 
 
+dataset_subgraph_node_sizes = [10, 20, 50]
+dataset_subgraph_grouping_counts = [10, 20, 30]
+dataset_op_encodings = ["frequency", "one-hot"]
+
 train_configs = {
     ModelType.MLP: {
         "model": "MLP",
         "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
         "dataset_normalization": "Standard",
+        "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
             "duration_summed": False
@@ -132,6 +140,7 @@ train_configs = {
         "model": "PerfNet",
         "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
         "dataset_normalization": "Standard",
+        "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
             "duration_summed": False
@@ -146,6 +155,7 @@ train_configs = {
         "model": "PerfNet",
         "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
         "dataset_normalization": "Standard",
+        "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
             "duration_summed": True
@@ -160,9 +170,14 @@ train_configs = {
         "model": "LSTM",
         "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
         "dataset_normalization": "Standard",
+        "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
             "duration_summed": False
+        },
+        "model_params": {
+            "num_layers": 5,
+            "bidirectional": True
         },
         "dataset_dummy": True,
         "batch_size": 64,
@@ -174,6 +189,8 @@ train_configs = {
         "model": "GCNGrouping",
         "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
         "dataset_normalization": "Standard",
+        "dataset_subgraph_grouping_count": dataset_subgraph_grouping_counts,
+        "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
             "duration_summed": False
@@ -188,6 +205,8 @@ train_configs = {
         "model": "GCNGrouping",
         "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
         "dataset_normalization": "Standard",
+        "dataset_subgraph_node_size": dataset_subgraph_node_sizes,
+        "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
             "duration_summed": False
@@ -202,14 +221,21 @@ train_configs = {
         "model": "Transformer",
         "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
         "dataset_normalization": "Standard",
+        "dataset_subgraph_node_size": dataset_subgraph_node_sizes,
+        "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
             "duration_summed": False
         },
+        "model_params": {
+            "nlayers": 6,
+            "d_hid": 64,
+            "dropout": 0.0
+        },
         "dataset_dummy": True,
         "batch_size": 64,
         "learning_rate": 1e-3,
-        "epochs": 10,
+        "epochs": 100,
         "optimizer": "Adam"
     },
 }
@@ -219,6 +245,8 @@ transfer_configs = {
         "model": "Transformer",
         "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
         "dataset_normalization": "Standard",
+        "dataset_subgraph_node_size": dataset_subgraph_node_sizes,
+        "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
             "duration_summed": False

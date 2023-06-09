@@ -27,14 +27,15 @@ class GroupingBasedExecutor(Executor):
         self.scalers: Tuple | None = None
 
     @staticmethod
-    def full_graph_feature(graph, subgraph_count: int = 10, **kwargs) -> Tuple[Dict[str, np.ndarray], Dict]:
+    def full_graph_feature(graph, subgraph_count: int = 10, op_type_encoding: str = "frequency", **kwargs) -> Tuple[
+        Dict[str, np.ndarray], Dict]:
         subgraphs, node_id_to_group_idx = graph.subgraphs(subgraph_count=subgraph_count)
 
         feature_matrix = list()
         for subgraph in subgraphs:
             subgraph_features = list()
             for node in subgraph:
-                node_feature = np.array(node.op.to_feature_array(mode="complex"))
+                node_feature = np.array(node.op.to_feature_array(op_type_encoding=op_type_encoding, mode="complex"))
                 subgraph_features.append(node_feature)
             if len(subgraph_features) == 0:
                 feature_matrix.append(np.zeros(1))
@@ -97,7 +98,10 @@ class GroupingBasedExecutor(Executor):
         adjacency_matrix_maxsize = 0
 
         for graph in graphs:
-            x, y = self.full_graph_feature(graph, **conf.dataset_params)
+            x, y = self.full_graph_feature(graph,
+                                           subgraph_count=conf.dataset_subgraph_grouping_count,
+                                           op_type_encoding=conf.dataset_op_encoding,
+                                           **conf.dataset_params)
             feature_matrix_size = len(x["x_feature_matrix"][0])
             adjacency_matrix_size = len(x["x_adjacency_metrix"][0])
             feature_matrix_maxsize = max(feature_matrix_maxsize, feature_matrix_size)

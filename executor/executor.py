@@ -30,8 +30,10 @@ class Executor(ABC):
             self._init_save_path()
         self.conf: Config = conf
         self.train_graphs = load_graphs(self.conf.dataset_environment,
+                                        train_or_eval="train",
                                         dummy=self.conf.dataset_dummy)
         self.eval_graphs = load_graphs(self.conf.dataset_environment,
+                                       train_or_eval="eval",
                                        dummy=self.conf.dataset_dummy)
         self.set_seed()
 

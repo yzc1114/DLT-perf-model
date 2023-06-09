@@ -1,8 +1,18 @@
 from enum import Enum
 from functools import lru_cache
-from typing import Tuple, Optional, Union, List
+from typing import Tuple, Optional, Union, List, Dict
 
 import numpy as np
+
+op_freq: Dict['OperatorType', float] | None = None
+
+
+def set_operator_freq(op_freq_count_dict: Dict['OperatorType', int]):
+    global op_freq
+    op_freq = dict()
+    total_count = sum(op_freq_count_dict.values())
+    for op, count in op_freq_count_dict.items():
+        op_freq[op] = 1. * count / total_count
 
 
 class OperatorType(Enum):
@@ -19,12 +29,12 @@ class OperatorType(Enum):
     Tanh = 10
 
     @lru_cache(maxsize=None)
-    def encode(self, method="one-hot") -> List:
+    def encode(self, method) -> List:
         op_types = [op for op in OperatorType]
         if method == "one-hot":
             return [1 if self == op_type_ else 0 for op_type_ in op_types]
         elif method == "frequency":
-            raise NotImplementedError()
+            return [op_freq.get(self, 0)]
         else:
             raise ValueError(
                 "Invalid method. Must be 'one-hot' or 'frequency'.")
@@ -51,7 +61,7 @@ class Operator:
     def dummy_op():
         return Operator(OperatorType.Dummy, 0, 0, 0, 0)
 
-    def to_feature_array(self, op_type_encoding="one-hot", mode="complex"):
+    def to_feature_array(self, op_type_encoding, mode):
         if mode == "complex":
             complex_feature_vector = [
                 *self.operator_type.encode(method=op_type_encoding),

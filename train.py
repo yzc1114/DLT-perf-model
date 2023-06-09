@@ -107,13 +107,13 @@ def launch_train(models: List[ModelType], launch_lambda):
 
 
 train_models = [
-    ModelType.MLP,
-    ModelType.GBDT,
-    ModelType.GCNSubgraph,
-    ModelType.PerfNet,
-    ModelType.Transformer,
+    # ModelType.MLP,
+    # ModelType.GBDT,
+    # ModelType.GCNSubgraph,
+    # ModelType.PerfNet,
+    # ModelType.Transformer,
     ModelType.LSTM,
-    ModelType.GCNGrouping
+    # ModelType.GCNGrouping
 ]
 
 transfer_models = [
@@ -122,9 +122,9 @@ transfer_models = [
 
 tasks = {
     "single_train",
-    "grid_search",
-    "single_transfer",
-    "grid_search_transfer"
+    # "grid_search",
+    # "single_transfer",
+    # "grid_search_transfer"
 }
 
 if __name__ == '__main__':

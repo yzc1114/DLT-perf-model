@@ -6,7 +6,7 @@ from torch import nn, Tensor
 from torch.nn import MSELoss
 
 from .base_module import MModule
-
+import logging
 
 class PositionalEncoder(nn.Module):
     def __init__(
@@ -63,9 +63,15 @@ class PositionalEncoder(nn.Module):
 
 
 class TransformerModel(MModule):
-    def __init__(self, d_model: int = 11, nhead: int = 8, d_hid: int = 2048,
-                 nlayers: int = 6, dropout: float = 0.5, output_d: int = 3):
+    def __init__(self,
+                 d_model: int,
+                 nhead: int,
+                 d_hid: int,
+                 nlayers: int,
+                 dropout: float,
+                 output_d: int):
         super().__init__()
+        logging.info("Transformer model inited, hyper parameters: {}".format(locals()))
         self.pos_encoder = PositionalEncoder(dropout=0.1,
                                              max_seq_len=100,
                                              d_model=d_model,
