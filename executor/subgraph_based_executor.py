@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim
-from torch.nn import MSELoss, LSTM
+from torch.nn import MSELoss, LSTM, GRU
 
 from config import Config
 from data import GraphNode, Graph
@@ -95,12 +95,8 @@ class SubgraphBasedExecutor(Executor):
 
         return X, Y
 
-    def _init_dataset(self, mode="train") -> MDataset:
+    def _init_dataset(self, graphs: List[Graph]) -> MDataset:
         conf = self.conf
-        if mode == "train":
-            graphs = self.train_graphs
-        else:
-            graphs = self.eval_graphs
 
         X = list()
         Y = list()
@@ -395,6 +391,61 @@ class LSTMSubgraphBasedExecutor(SubgraphBasedExecutor):
     def grid_search_model_params() -> Dict[str, List]:
         return {
             "num_layers": [2, 4],
+            "bidirectional": [True, False],
+        }
+
+    def _init_model(self) -> MModule | Any:
+        sample_x_dict = self.preprocessed_train_ds.features[0]
+        sample_y_dict = self.preprocessed_train_ds.labels[0]
+        x_node_feature_size = len(sample_x_dict["x_subgraph_feature"][0])
+        y_nodes_durations_len = len(sample_y_dict["y_nodes_durations"][0])
+        model_params = self.conf.model_params
+        final_params = self.default_model_params()
+        for k, v in final_params.items():
+            final_params[k] = model_params.get(k, v)
+        return LSTMModel(
+            feature_size=x_node_feature_size,
+            nodes_durations_len=y_nodes_durations_len,
+            **final_params
+        )
+
+
+class GRUModel(MModule):
+    def __init__(self, feature_size, nodes_durations_len, num_layers, bidirectional, **kwargs):
+        super().__init__(**kwargs)
+        self.gru = GRU(input_size=feature_size, hidden_size=feature_size, num_layers=num_layers, batch_first=True,
+                         bidirectional=bidirectional)
+        num_directions = 2 if bidirectional else 1
+        self.project = torch.nn.Linear(in_features=feature_size * num_directions, out_features=nodes_durations_len)
+        self.loss_fn = MSELoss()
+
+    def forward(self, X):
+        X = X["x_subgraph_feature"]
+        out, _ = self.gru(X)
+        Y = self.project(out)
+        return Y
+
+    def compute_loss(self, outputs, Y):
+        node_durations = Y["y_nodes_durations"]
+        loss = self.loss_fn(outputs, node_durations)
+        return loss
+
+
+class GRUSubgraphBasedExecutor(SubgraphBasedExecutor):
+    def _init_model_type(self) -> ModelType:
+        return ModelType.GRU
+
+    @staticmethod
+    def default_model_params() -> Dict[str, Any]:
+        return {
+            "num_layers": 4,
+            "bidirectional": True,
+        }
+
+    @staticmethod
+    def grid_search_model_params() -> Dict[str, List]:
+        return {
+            "num_layers": [1, 2, 4],
             "bidirectional": [True, False],
         }
 

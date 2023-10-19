@@ -112,7 +112,8 @@ train_models = [
     # ModelType.GCNSubgraph,
     # ModelType.PerfNet,
     # ModelType.Transformer,
-    ModelType.LSTM,
+    # ModelType.LSTM,
+    ModelType.GRU,
     # ModelType.GCNGrouping
 ]
 

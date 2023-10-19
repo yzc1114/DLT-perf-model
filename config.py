@@ -1,5 +1,5 @@
 import json
-from typing import Dict
+from typing import Dict, List
 
 import torch.cuda
 from sklearn import preprocessing
@@ -34,14 +34,24 @@ class TransferConfigMixin:
 class DatasetConfigMixin:
     def __init__(self, dataset_config_js, **kwargs):
         super().__init__(**kwargs)
+        meta_configs = dataset_config_js.get("meta_configs", dict())
         self.dataset_environment_str: str = dataset_config_js.get("dataset_environment_str",
-                                                                  "RTX2080Ti_pytorch_cuda118")
-        self.dataset_gpu_type_str, self.dataset_framework, self.dataset_cuda_version = \
-            self.dataset_environment_str.split("_")
+                                                                  "RTX2080Ti")
+        self.meta_dataset_train_environment_strs: [str] = meta_configs.get("meta_dataset_train_environment_strs",
+                                                                           ["RTX2080Ti"])
+        self.meta_dataset_eval_environment_strs: [str] = meta_configs.get("meta_dataset_eval_environment_strs",
+                                                                          ["RTX2080Ti"])
+        self.dataset_gpu_type_str = self.dataset_environment_str
         self.dataset_gpu_type: GPUType = GPUType[self.dataset_gpu_type_str]
-        self.dataset_environment: Environment = Environment(gpu_type=self.dataset_gpu_type,
-                                                            framework=self.dataset_framework,
-                                                            cuda_version=self.dataset_cuda_version)
+        self.meta_dataset_eval_gpu_types: List[GPUType] = [GPUType[s] for s in
+                                                           self.meta_dataset_eval_environment_strs]
+        self.meta_dataset_train_gpu_types: List[GPUType] = [GPUType[s] for s in
+                                                            self.meta_dataset_train_environment_strs]
+        self.dataset_environment: Environment = Environment(gpu_type=self.dataset_gpu_type)
+        self.meta_dataset_train_environments: List[Environment] = [Environment(gpu_type=t) for t in
+                                                                   self.meta_dataset_train_gpu_types]
+        self.meta_dataset_eval_environments: List[Environment] = [Environment(gpu_type=t) for t in
+                                                                  self.meta_dataset_eval_gpu_types]
         self.dataset_normalization = dataset_config_js.get("dataset_normalization", "Standard")
         if self.dataset_normalization == "Standard":
             self.dataset_normalizer_cls = preprocessing.StandardScaler
@@ -114,6 +124,11 @@ class Config(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, TransferCo
         self.optimizer_cls_str = train_config_js.get("optimizer", "Adam")
         self.optimizer_cls = OptimizerType[train_config_js.get("optimizer", "Adam")].value
         self.learning_rate = train_config_js.get("learning_rate", 1e-3)
+        meta_configs = train_config_js.get("meta_configs", 1e-3)
+        self.meta_configs = {
+            "learning_rate": meta_configs.get("learning_rate", 1e-3),
+            "meta_learning_rate": meta_configs.get("meta_learning_rate", 1e-3),
+        }
 
 
 dataset_subgraph_node_sizes = [10, 20, 50]
@@ -123,10 +138,10 @@ dataset_op_encodings = ["frequency", "one-hot"]
 train_configs = {
     ModelType.MLP: {
         "model": "MLP",
-        "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
+        "all_seed": 42,
+        "dataset_environment_str": "RTX2080Ti",
         "dataset_normalization": "Standard",
         "dataset_op_encoding": dataset_op_encodings,
-        "all_seed": 42,
         "dataset_params": {
             "duration_summed": False
         },
@@ -134,11 +149,16 @@ train_configs = {
         "batch_size": 64,
         "learning_rate": 1e-3,
         "epochs": 100,
-        "optimizer": "Adam"
+        "optimizer": "Adam",
+        "meta_configs": {
+            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+        },
     },
     ModelType.PerfNet: {
         "model": "PerfNet",
-        "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
+        "dataset_environment_str": "RTX2080Ti",
+        "meta_dataset_environment_strs": ["RTX2080Ti"],
         "dataset_normalization": "Standard",
         "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
@@ -153,7 +173,8 @@ train_configs = {
     },
     ModelType.GBDT: {
         "model": "PerfNet",
-        "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
+        "dataset_environment_str": "RTX2080Ti",
+        "meta_dataset_environment_strs": ["RTX2080Ti"],
         "dataset_normalization": "Standard",
         "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
@@ -164,11 +185,16 @@ train_configs = {
         "batch_size": 64,
         "learning_rate": 1e-3,
         "epochs": 100,
-        "optimizer": "Adam"
+        "optimizer": "Adam",
+        "meta_configs": {
+            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+        },
     },
     ModelType.LSTM: {
         "model": "LSTM",
-        "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
+        "dataset_environment_str": "RTX2080Ti",
+        "meta_dataset_environment_strs": ["RTX2080Ti"],
         "dataset_normalization": "Standard",
         "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
@@ -183,11 +209,39 @@ train_configs = {
         "batch_size": 64,
         "learning_rate": 1e-3,
         "epochs": 100,
-        "optimizer": "Adam"
+        "optimizer": "Adam",
+        "meta_configs": {
+            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+        },
+    },
+    ModelType.GRU: {
+        "model": "GRU",
+        "dataset_environment_str": "RTX2080Ti",
+        "meta_dataset_environment_strs": ["RTX2080Ti"],
+        "dataset_normalization": "Standard",
+        "dataset_op_encoding": dataset_op_encodings,
+        "all_seed": 42,
+        "dataset_params": {
+            "duration_summed": False
+        },
+        "model_params": {
+            "num_layers": 5,
+            "bidirectional": True
+        },
+        "dataset_dummy": True,
+        "batch_size": 64,
+        "learning_rate": 1e-3,
+        "epochs": 100,
+        "optimizer": "Adam",
+        "meta_configs": {
+            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+        },
     },
     ModelType.GCNGrouping: {
         "model": "GCNGrouping",
-        "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
+        "dataset_environment_str": "RTX2080Ti",
         "dataset_normalization": "Standard",
         "dataset_subgraph_grouping_count": dataset_subgraph_grouping_counts,
         "dataset_op_encoding": dataset_op_encodings,
@@ -199,11 +253,15 @@ train_configs = {
         "batch_size": 64,
         "learning_rate": 1e-3,
         "epochs": 100,
-        "optimizer": "Adam"
+        "optimizer": "Adam",
+        "meta_configs": {
+            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+        },
     },
     ModelType.GCNSubgraph: {
         "model": "GCNGrouping",
-        "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
+        "dataset_environment_str": "RTX2080Ti",
         "dataset_normalization": "Standard",
         "dataset_subgraph_node_size": dataset_subgraph_node_sizes,
         "dataset_op_encoding": dataset_op_encodings,
@@ -215,11 +273,15 @@ train_configs = {
         "batch_size": 64,
         "learning_rate": 1e-3,
         "epochs": 100,
-        "optimizer": "Adam"
+        "optimizer": "Adam",
+        "meta_configs": {
+            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+        },
     },
     ModelType.Transformer: {
         "model": "Transformer",
-        "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
+        "dataset_environment_str": "RTX2080Ti",
         "dataset_normalization": "Standard",
         "dataset_subgraph_node_size": dataset_subgraph_node_sizes,
         "dataset_op_encoding": dataset_op_encodings,
@@ -236,14 +298,18 @@ train_configs = {
         "batch_size": 64,
         "learning_rate": 1e-3,
         "epochs": 100,
-        "optimizer": "Adam"
+        "optimizer": "Adam",
+        "meta_configs": {
+            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+        },
     },
 }
 
 transfer_configs = {
     ModelType.Transformer: {
         "model": "Transformer",
-        "dataset_environment_str": "RTX2080Ti_pytorch_cuda118",
+        "dataset_environment_str": "RTX2080Ti",
         "dataset_normalization": "Standard",
         "dataset_subgraph_node_size": dataset_subgraph_node_sizes,
         "dataset_op_encoding": dataset_op_encodings,

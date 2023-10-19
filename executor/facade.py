@@ -4,6 +4,7 @@ from .op_based_executor import MLP_OPBasedExecutor, PerfNet_OPBasedExecutor, GBD
 from .subgraph_based_executor import MLPTest_SubgraphBasedExecutor, \
     TransformerSubgraphBasedExecutor, \
     LSTMSubgraphBasedExecutor, \
+    GRUSubgraphBasedExecutor, \
     GCNSubgraphBasedExecutor
 
 
@@ -16,6 +17,7 @@ def get_executor_cls(model_type: ModelType):
         ModelType.MLPTestSubgraph: MLPTest_SubgraphBasedExecutor,
         ModelType.Transformer: TransformerSubgraphBasedExecutor,
         ModelType.LSTM: LSTMSubgraphBasedExecutor,
+        ModelType.GRU: GRUSubgraphBasedExecutor,
         ModelType.GCNSubgraph: GCNSubgraphBasedExecutor,
         ModelType.GCNGrouping: GCNGroupingBasedExecutor,
     }[model_type]

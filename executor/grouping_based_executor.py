@@ -12,7 +12,7 @@ import torch.optim
 from torch.nn import MSELoss
 
 from config import Config
-from data.dataset import MDataset
+from data.dataset import MDataset, Graph
 from executor.base_module import MModule
 from executor.executor import Executor
 from executor.metric import MetricUtil
@@ -84,13 +84,8 @@ class GroupingBasedExecutor(Executor):
         }
         return x, y
 
-    def _init_dataset(self, mode="train") -> MDataset:
+    def _init_dataset(self, graphs: List[Graph]) -> MDataset:
         conf = self.conf
-        if mode == "train":
-            graphs = self.train_graphs
-        else:
-            graphs = self.eval_graphs
-
         X = list()
         Y = list()
 

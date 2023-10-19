@@ -16,8 +16,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from config import Config
-from data.dataset import MDataset, load_graphs
-from objects import ModelType, ckpts_dir
+from data.dataset import MDataset, load_graphs, Graph
+from objects import ModelType, ckpts_dir, Environment
 from .base_module import MModule
 from .util import nested_detach
 
@@ -29,6 +29,9 @@ class Executor(ABC):
         if isinstance(conf, Config):
             self._init_save_path()
         self.conf: Config = conf
+        self._check_params()
+
+    def _prepare_single_train(self):
         self.train_graphs = load_graphs(self.conf.dataset_environment,
                                         train_or_eval="train",
                                         dummy=self.conf.dataset_dummy)
@@ -42,13 +45,31 @@ class Executor(ABC):
         self.preprocessed_train_ds: MDataset | None = None
         self.preprocessed_eval_ds: MDataset | None = None
 
-        self.train_ds = self._init_dataset(mode="train")
-        self.eval_ds = self._init_dataset(mode="eval")
-        self.preprocessed_train_ds = self._init_preprocessed_dataset(mode="train")
-        self.preprocessed_eval_ds = self._init_preprocessed_dataset(mode="eval")
+        self.train_ds = self._init_dataset(self.train_graphs)
+        self.eval_ds = self._init_dataset(self.eval_graphs)
+        self.preprocessed_train_ds = self._init_preprocessed_dataset(self.train_ds)
+        self.preprocessed_eval_ds = self._init_preprocessed_dataset(self.eval_ds)
 
         self.train_records: Dict = dict()
-        self._check_params()
+
+    def _prepare_meta_train(self):
+        self.meta_train_graphs: Dict[Environment, List[Graph]] = dict()
+        self.meta_eval_graphs: Dict[Environment, List[Graph]] = dict()
+
+        for env in self.conf.meta_dataset_train_environments:
+            graphs = load_graphs(env, train_or_eval="train", dummy=self.conf.dataset_dummy)
+            self.meta_train_graphs[env] = graphs
+            self.meta_train_ds: MDataset = self._init_dataset(graphs)
+            self.meta_preprocessed_train_ds: MDataset = self._init_preprocessed_dataset(self.meta_train_ds)
+
+        for env in self.conf.meta_dataset_train_environments:
+            graphs = load_graphs(env, train_or_eval="train", dummy=self.conf.dataset_dummy)
+            self.meta_eval_graphs[env] = graphs
+            self.meta_train_ds: MDataset = self._init_dataset(graphs)
+            self.meta_preprocessed_train_ds: MDataset = self._init_preprocessed_dataset(self.meta_train_ds)
+
+        self.train_records: Dict = dict()
+        self.set_seed()
 
     @staticmethod
     @abstractmethod
@@ -102,7 +123,7 @@ class Executor(ABC):
             exit(-1)
 
     @abstractmethod
-    def _init_dataset(self, mode="train") -> MDataset:
+    def _init_dataset(self, graphs: List[Graph]) -> MDataset:
         pass
 
     def init_model(self) -> MModule | Any:
@@ -130,6 +151,7 @@ class Executor(ABC):
         return optimizer, lr_scheduler
 
     def train(self):
+        self._prepare_single_train()
         processed_train_ds = self.preprocessed_train_ds
         train_dl = DataLoader(processed_train_ds, batch_size=self.conf.batch_size, shuffle=True)
         model = self.init_model()
@@ -175,6 +197,9 @@ class Executor(ABC):
             lr_scheduler.step()
         self.save_train_plot()
 
+    def meta_train(self):
+        pass
+
     def save_train_plot(self):
         fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
@@ -203,17 +228,8 @@ class Executor(ABC):
         fig_save_path = str(pathlib.Path(self.save_path, "train_plot.png"))
         fig.savefig(fig_save_path)
 
-    def _init_preprocessed_dataset(self, mode="train") -> MDataset:
-        mode_to_attr = {
-            "train": "preprocessed_train_ds",
-            "eval": "preprocessed_eval_ds"
-        }
-        cache = self.__getattribute__(mode_to_attr[mode])
-        if self.__getattribute__(mode_to_attr[mode]) is not None:
-            return cache
-
-        ds = self.train_ds if mode == "train" else self.eval_ds
-        preprocessed = self._preprocess_dataset(ds)
+    def _init_preprocessed_dataset(self, raw: MDataset) -> MDataset:
+        preprocessed = self._preprocess_dataset(raw)
         return preprocessed
 
     @abstractmethod

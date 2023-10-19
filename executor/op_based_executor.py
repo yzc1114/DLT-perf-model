@@ -18,7 +18,7 @@ from sklearn.metrics import mean_squared_error
 from torch.nn import MSELoss, ReLU
 
 from config import Config
-from data.dataset import MDataset
+from data.dataset import MDataset, Graph
 from executor.base_module import MModule
 from executor.executor import Executor
 from executor.metric import MetricUtil
@@ -61,12 +61,8 @@ class OPBasedExecutor(Executor):
             Y.append(y)
         return X, Y
 
-    def _init_dataset(self, mode="train") -> MDataset:
+    def _init_dataset(self, graphs: List[Graph]) -> MDataset:
         conf = self.conf
-        if mode == "train":
-            graphs = self.train_graphs
-        else:
-            graphs = self.eval_graphs
 
         op_X, op_Y = list(), list()
         data_idx_to_graph = dict()

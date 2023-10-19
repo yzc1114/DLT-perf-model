@@ -17,18 +17,20 @@ class ModelType(Enum):
     Transformer = 5
     LSTM = 6
     GCNGrouping = 7
+    GRU = 8
     MLPTestGrouping = 100
     MLPTestSubgraph = 101
 
 
 class Environment:
-    def __init__(self, gpu_type: 'GPUType', framework: str, cuda_version: str):
+    def __init__(self, gpu_type: 'GPUType', framework: str=None, cuda_version: str=None):
         self.gpu_type: GPUType = gpu_type
-        self.framework: str = framework
-        self.cuda_version: str = cuda_version
+        # self.framework: str = framework
+        # self.cuda_version: str = cuda_version
 
     def __str__(self):
-        return f"{self.gpu_type.name}_{self.framework}_{self.cuda_version}"
+        # return f"{self.gpu_type.name}_{self.framework}_{self.cuda_version}"
+        return f"{self.gpu_type.name}"
 
     def __repr__(self):
         return self.__str__()
