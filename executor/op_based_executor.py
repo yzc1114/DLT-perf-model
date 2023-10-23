@@ -23,7 +23,7 @@ from executor.base_module import MModule
 from executor.executor import Executor
 from executor.metric import MetricUtil
 from executor.util import nested_detach
-from objects import ModelType
+from objects import ModelType, Environment
 
 
 class OPBasedExecutor(Executor):
@@ -144,8 +144,8 @@ class OPBasedExecutor(Executor):
         ds = MDataset(processed_features, processed_labels)
         return ds
 
-    def _evaluate(self, model) -> Dict[str, float]:
-        input_batches, output_batches, eval_loss = self._dl_evaluate_pred(model)
+    def _evaluate(self, model, env: Environment,ds: MDataset) -> Dict[str, float]:
+        input_batches, output_batches, eval_loss = self._dl_evaluate_pred(model, env, ds)
 
         batches_len = len(input_batches)
 
@@ -348,8 +348,9 @@ class GBDT_OPBasedExecutor(OPBasedExecutor):
     def _loss_from_filename(filename: str) -> float:
         return float(filename[:filename.index(".")].split("_")[-1])
 
-    def train(self):
+    def single_train(self):
         logging.info(f"{self.model_type} starts training.")
+        save_path = self._generate_save_path(prefix="single_train")
         ds = self.preprocessed_train_ds
         X, Y = self.dataset_to_samples(ds)
         model = self.init_model()
@@ -360,7 +361,7 @@ class GBDT_OPBasedExecutor(OPBasedExecutor):
         end = time.time_ns()
         second_dur = (end - start) / 1e9
         logging.info(f"{self.model_type} ends training for {second_dur} seconds.")
-        metrics = self._evaluate(model)
+        metrics = self._evaluate(model, self.conf.dataset_environment, self.preprocessed_eval_ds)
         eval_loss = metrics["eval_loss"]
         self.train_records["eval_metrics"] = [
             {
@@ -368,7 +369,7 @@ class GBDT_OPBasedExecutor(OPBasedExecutor):
                 "duration": second_dur
             }
         ]
-        self.save_model(model=model, curr_steps=0, curr_loss_value=eval_loss)
+        self.save_model(save_path=save_path, model=model, curr_steps=0, curr_loss_value=eval_loss)
 
     @staticmethod
     def _save_ckpt_to(model, filepath):
@@ -383,9 +384,10 @@ class GBDT_OPBasedExecutor(OPBasedExecutor):
 
     def _evaluate(
             self,
-            model
+            model,
+            env: Environment,
+            ds: MDataset
     ) -> Dict[str, float]:
-        ds = self.preprocessed_eval_ds
         X, Y = self.dataset_to_samples(ds)
         X_OP = X["x_op_feature"]
         Y_dur = Y["y_node_durations"]

@@ -34,6 +34,20 @@ class Environment:
 
     def __repr__(self):
         return self.__str__()
+    
+    def __hash__(self) -> int:
+        return self.gpu_type.__hash__()
+    
+    def __eq__(self, __value: object) -> bool:
+        if not isinstance(__value, Environment):
+            return False
+        return __value.gpu_type == self.gpu_type
+
+    def __ne__(self, __value: object) -> bool:
+        return not self.__eq__(__value)
+    
+    def toJson(self):
+        return self.__str__()
 
 
 class GPUType(Enum):

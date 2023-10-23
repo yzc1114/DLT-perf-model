@@ -28,7 +28,7 @@ class GraphNode:
 
     @staticmethod
     def dummy_node():
-        return GraphNode(node_id=-1, op=Operator.dummy_op(), forward_times=(0, 0), backward_times=(0, 0),
+        return GraphNode(node_id=random.randint(1000, 1e6), op=Operator.dummy_op(), forward_times=(0, 0), backward_times=(0, 0),
                          optimizer_times=(0, 0))
 
     def add_neighbors(self, *neighbors: 'GraphNode'):
@@ -130,24 +130,29 @@ class Graph:
             return generate_dummy()
         raise NotImplementedError()
 
-    def subgraphs(self, subgraph_count: Optional[int] = None, subgraph_node_size: Optional[int] = None) -> \
+    def subgraphs(self, subgraph_node_size: Optional[int] = None, step: Optional[int]=None) -> \
             Tuple[List[List[GraphNode]], Dict[int, int]]:
         # subgraphs, node graph mapping
-        if subgraph_count is None and subgraph_node_size is None:
-            raise ValueError("Invalid subgraph_count and subgraph_node_size, cannot be None simultaneously.")
-        if subgraph_count is not None:
-            subgraph_node_size = math.ceil(float(len(self.nodes)) / subgraph_count)
-        elif subgraph_node_size is not None:
-            subgraph_count = math.ceil(float(len(self.nodes)) / subgraph_node_size)
+        if step is None:
+            step = subgraph_node_size
         subgraphs = list()
         node_id_to_group_idx = dict()
-        for i in range(subgraph_count):
-            subgraph_nodes = self.nodes[i * subgraph_node_size: (i + 1) * subgraph_node_size]
+        idx = 0
+        while True:
+            if idx > len(self.nodes):
+                break
+            subgraph_nodes = self.nodes[idx: 
+                                        min(idx + subgraph_node_size, len(self.nodes))]
             subgraphs.append(subgraph_nodes)
             for node in subgraph_nodes:
-                node_id_to_group_idx[node.node_id] = i
+                node_id_to_group_idx[node.node_id] = idx
+            dummy_node_require = False
             while len(subgraph_nodes) < subgraph_node_size:
                 subgraph_nodes.append(GraphNode.dummy_node())
+                dummy_node_require = True
+            if dummy_node_require:
+                break
+            idx += step
         return subgraphs, node_id_to_group_idx
 
     def graph_meta_feature(self):

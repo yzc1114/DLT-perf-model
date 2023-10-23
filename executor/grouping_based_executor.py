@@ -17,7 +17,7 @@ from executor.base_module import MModule
 from executor.executor import Executor
 from executor.metric import MetricUtil
 from executor.util import nested_detach, pad_np_vectors
-from objects import ModelType
+from objects import ModelType, Environment
 from .gcn import GCNLayer
 
 
@@ -27,7 +27,7 @@ class GroupingBasedExecutor(Executor):
         self.scalers: Tuple | None = None
 
     @staticmethod
-    def full_graph_feature(graph, subgraph_count: int = 10, op_type_encoding: str = "frequency", **kwargs) -> Tuple[
+    def full_graph_feature(graph, subgraph_count: int = 10, op_type_encoding: str = "one-hot", **kwargs) -> Tuple[
         Dict[str, np.ndarray], Dict]:
         subgraphs, node_id_to_group_idx = graph.subgraphs(subgraph_count=subgraph_count)
 
@@ -76,7 +76,7 @@ class GroupingBasedExecutor(Executor):
         x = {
             "x_graph_id": graph.ID,
             "x_feature_matrix": feature_matrix,
-            "x_adjacency_metrix": adjacency_matrix,
+            "x_adjacency_matrix": adjacency_matrix,
         }
         y = {
             "y_graph_id": graph.ID,
@@ -98,7 +98,7 @@ class GroupingBasedExecutor(Executor):
                                            op_type_encoding=conf.dataset_op_encoding,
                                            **conf.dataset_params)
             feature_matrix_size = len(x["x_feature_matrix"][0])
-            adjacency_matrix_size = len(x["x_adjacency_metrix"][0])
+            adjacency_matrix_size = len(x["x_adjacency_matrix"][0])
             feature_matrix_maxsize = max(feature_matrix_maxsize, feature_matrix_size)
             adjacency_matrix_maxsize = max(adjacency_matrix_maxsize, adjacency_matrix_size)
 
@@ -106,7 +106,7 @@ class GroupingBasedExecutor(Executor):
             Y.append(y)
         for x in X:
             x["x_feature_matrix"] = pad_np_vectors(x["x_feature_matrix"], maxsize=feature_matrix_maxsize)
-            x["x_adjacency_metrix"] = pad_np_vectors(x["x_adjacency_metrix"], maxsize=adjacency_matrix_maxsize)
+            x["x_adjacency_matrix"] = pad_np_vectors(x["x_adjacency_matrix"], maxsize=adjacency_matrix_maxsize)
 
         dataset = MDataset(X, Y)
         return dataset
@@ -161,11 +161,11 @@ class GroupingBasedExecutor(Executor):
         processed_labels = list()
         for i, data in enumerate(ds):
             feature, label = data
-            x_adjacency_matrix = np.array(feature["x_adjacency_metrix"]).astype(np.float32)
+            x_adjacency_matrix = np.array(feature["x_adjacency_matrix"]).astype(np.float32)
             processed_features.append({
                 "x_graph_id": feature["x_graph_id"],
                 "x_feature_matrix": graph_feature_arrays[i],
-                "x_adjacency_metrix": x_adjacency_matrix
+                "x_adjacency_matrix": x_adjacency_matrix
             })
             processed_labels.append({
                 "y_graph_id": label["y_graph_id"],
@@ -175,8 +175,8 @@ class GroupingBasedExecutor(Executor):
         ds = MDataset(processed_features, processed_labels)
         return ds
 
-    def _evaluate(self, model) -> Dict[str, float]:
-        input_batches, output_batches, eval_loss = self._dl_evaluate_pred(model)
+    def _evaluate(self, model, env: Environment, ds: MDataset) -> Dict[str, float]:
+        input_batches, output_batches, eval_loss = self._dl_evaluate_pred(model, env, ds)
 
         batches_len = len(input_batches)
 
@@ -258,7 +258,7 @@ class GCNGroupingModel(MModule):
         self.loss_fn = MSELoss()
 
     def forward(self, X):
-        adj, features = X["x_adjacency_metrix"], X["x_feature_matrix"]
+        adj, features = X["x_adjacency_matrix"], X["x_feature_matrix"]
         h = features
         for layer in self.layers:
             h = layer(adj, h)

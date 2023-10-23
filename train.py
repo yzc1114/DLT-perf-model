@@ -79,7 +79,8 @@ def launch_grid_search(train_model: ModelType, _configs: Dict[ModelType, Dict], 
                 f"{train_model} grid search {curr_conf_idx}/{total_search_items} done. training duration: {train_over_time - now:.2f}s")
 
 
-def launch_single_train(train_model: ModelType, _configs: Dict[ModelType, Dict]):
+def launch_train_once(train_model: ModelType, _configs: Dict[ModelType, Dict], mode: str="single"):
+    assert mode in ["single", "meta"]
     conf_dict = _configs[train_model]
     confirmed_params = dict()
     for k, v in conf_dict.items():
@@ -88,13 +89,16 @@ def launch_single_train(train_model: ModelType, _configs: Dict[ModelType, Dict])
         else:
             confirmed_params[k] = v[0]
     now = time.time()
-    logging.info(f"{train_model} single train starts. conf = {json.dumps(confirmed_params, indent='    ')}")
+    logging.info(f"{train_model} {mode} train starts. conf = {json.dumps(confirmed_params, indent='    ')}")
     conf = Config.from_dict(confirmed_params)
     executor_cls = get_executor_cls(model_type=train_model)
     executor = executor_cls(conf)
-    executor.train()
+    if mode == "single":
+        executor.single_train()
+    elif mode == "meta":
+        executor.meta_train()
     train_over_time = time.time()
-    logging.info(f"{train_model} single train ends. training duration = {train_over_time - now:.2f}s.")
+    logging.info(f"{train_model} {mode} train ends. training duration = {train_over_time - now:.2f}s.")
 
 
 def launch_train(models: List[ModelType], launch_lambda):
@@ -122,7 +126,8 @@ transfer_models = [
 ]
 
 tasks = {
-    "single_train",
+    # "single_train",
+    "meta_train",
     # "grid_search",
     # "single_transfer",
     # "grid_search_transfer"
@@ -132,7 +137,12 @@ if __name__ == '__main__':
     if "single_train" in tasks:
         # launch single train
         launch_train(models=train_models,
-                     launch_lambda=lambda train_model: launch_single_train(train_model, train_configs))
+                     launch_lambda=lambda train_model: launch_train_once(train_model, train_configs, "single"))
+
+    if "meta_train" in tasks:
+        # launch single train
+        launch_train(models=train_models,
+                     launch_lambda=lambda train_model: launch_train_once(train_model, train_configs, "meta"))
 
     if "grid_search" in tasks:
         # launch grid search on model params
@@ -144,7 +154,7 @@ if __name__ == '__main__':
     if "single_transfer" in tasks:
         # launch single transfer train
         launch_train(models=transfer_models,
-                     launch_lambda=lambda train_model: launch_single_train(train_model, transfer_configs))
+                     launch_lambda=lambda train_model: launch_train_once(train_model, transfer_configs, "single"))
 
     if "grid_search_transfer" in tasks:
         # launch grid search on transfer params

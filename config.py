@@ -7,24 +7,6 @@ from sklearn import preprocessing
 from objects import GPUType, Environment, OptimizerType, ModelType
 
 
-class JsonifyAble:
-    def to_dict(self):
-        attr_names = dir(self)
-        d = dict()
-        for attr_name in attr_names:
-            if attr_name.startswith("__"):
-                continue
-            attr = self.__getattribute__(attr_name)
-            if isinstance(attr, int) or \
-                    isinstance(attr, str) or \
-                    isinstance(attr, dict) or \
-                    isinstance(attr, list) or \
-                    isinstance(attr, bool) or \
-                    attr is None:
-                d[attr_name] = attr
-        return d
-
-
 class TransferConfigMixin:
     def __init__(self, transfer_config_js, **kwargs):
         super().__init__(**kwargs)
@@ -60,6 +42,7 @@ class DatasetConfigMixin:
         else:
             raise ValueError(f"Invalid dataset_normalization: {self.dataset_normalization}")
         self.dataset_subgraph_node_size = dataset_config_js.get("dataset_subgraph_node_size", 10)
+        self.dataset_subgraph_step = dataset_config_js.get("dataset_subgraph_step", 5)
         self.dataset_subgraph_grouping_count = dataset_config_js.get("dataset_subgraph_grouping_count", 10)
         self.dataset_op_encoding = dataset_config_js.get("dataset_op_encoding", "frequency")
         self.dataset_params = dataset_config_js.get("dataset_params", dict())
@@ -95,11 +78,14 @@ class DeviceConfigMixin:
             self.device = device_config_js.get("device_type", "cpu")
 
 
-class Config(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, TransferConfigMixin, JsonifyAble):
+class Config(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, TransferConfigMixin):
 
     @staticmethod
     def from_dict(d):
         return Config(d)
+    
+    def to_dict(self):
+        return self.raw_config
 
     @staticmethod
     def from_file(config_filepath):
@@ -112,6 +98,7 @@ class Config(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, TransferCo
                          model_config_js=train_config_js,
                          device_config_js=train_config_js,
                          transfer_config_js=train_config_js)
+        self.raw_config = train_config_js
         # training
         self.all_seed = train_config_js.get("all_seed", 42)
         self.num_train_epochs = train_config_js.get("epochs", 50)
@@ -125,15 +112,18 @@ class Config(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, TransferCo
         self.optimizer_cls = OptimizerType[train_config_js.get("optimizer", "Adam")].value
         self.learning_rate = train_config_js.get("learning_rate", 1e-3)
         meta_configs = train_config_js.get("meta_configs", 1e-3)
-        self.meta_configs = {
-            "learning_rate": meta_configs.get("learning_rate", 1e-3),
-            "meta_learning_rate": meta_configs.get("meta_learning_rate", 1e-3),
-        }
+        self.meta_base_learning_rate = meta_configs.get("learning_rate", 1e-3)
+        self.meta_train_steps = meta_configs.get("meta_train_steps", 1000)
+        self.meta_task_per_step = meta_configs.get("meta_task_per_step", 8)
+        self.meta_fast_adaption_step = meta_configs.get("meta_fast_adaption_step", 5)
+        self.meta_adaption_batch_size = meta_configs.get("meta_adaption_batch_size", 128)
+        self.meta_shots = meta_configs.get("meta_shots", 16)
+        self.meta_learner_learning_rate = meta_configs.get("meta_learning_rate", 1e-3)
 
 
 dataset_subgraph_node_sizes = [10, 20, 50]
 dataset_subgraph_grouping_counts = [10, 20, 30]
-dataset_op_encodings = ["frequency", "one-hot"]
+dataset_op_encodings = ["one-hot"]
 
 train_configs = {
     ModelType.MLP: {
@@ -151,6 +141,11 @@ train_configs = {
         "epochs": 100,
         "optimizer": "Adam",
         "meta_configs": {
+            "learning_rate": 0.005,
+            "meta_learning_rate": 0.001,
+            "meta_train_steps": 1000,
+            "meta_task_per_step": 8,
+            "meta_fast_adaption_step": 5,
             "meta_dataset_train_environment_strs": ["RTX2080Ti"],
             "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
         },
@@ -169,7 +164,16 @@ train_configs = {
         "batch_size": 64,
         "learning_rate": 1e-3,
         "epochs": 100,
-        "optimizer": "Adam"
+        "optimizer": "Adam",
+        "meta_configs": {
+            "learning_rate": 0.005,
+            "meta_learning_rate": 0.001,
+            "meta_train_steps": 1000,
+            "meta_task_per_step": 8,
+            "meta_fast_adaption_step": 5,
+            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+        },
     },
     ModelType.GBDT: {
         "model": "PerfNet",
@@ -187,6 +191,11 @@ train_configs = {
         "epochs": 100,
         "optimizer": "Adam",
         "meta_configs": {
+            "learning_rate": 0.005,
+            "meta_learning_rate": 0.001,
+            "meta_train_steps": 1000,
+            "meta_task_per_step": 8,
+            "meta_fast_adaption_step": 5,
             "meta_dataset_train_environment_strs": ["RTX2080Ti"],
             "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
         },
@@ -197,6 +206,7 @@ train_configs = {
         "meta_dataset_environment_strs": ["RTX2080Ti"],
         "dataset_normalization": "Standard",
         "dataset_op_encoding": dataset_op_encodings,
+        "dataset_subgraph_node_size": dataset_subgraph_node_sizes,
         "all_seed": 42,
         "dataset_params": {
             "duration_summed": False
@@ -211,6 +221,11 @@ train_configs = {
         "epochs": 100,
         "optimizer": "Adam",
         "meta_configs": {
+            "learning_rate": 0.005,
+            "meta_learning_rate": 0.001,
+            "meta_train_steps": 1000,
+            "meta_task_per_step": 8,
+            "meta_fast_adaption_step": 5,
             "meta_dataset_train_environment_strs": ["RTX2080Ti"],
             "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
         },
@@ -221,6 +236,7 @@ train_configs = {
         "meta_dataset_environment_strs": ["RTX2080Ti"],
         "dataset_normalization": "Standard",
         "dataset_op_encoding": dataset_op_encodings,
+        "dataset_subgraph_node_size": dataset_subgraph_node_sizes,
         "all_seed": 42,
         "dataset_params": {
             "duration_summed": False
@@ -235,6 +251,11 @@ train_configs = {
         "epochs": 100,
         "optimizer": "Adam",
         "meta_configs": {
+            "learning_rate": 0.005,
+            "meta_learning_rate": 0.001,
+            "meta_train_steps": 1000,
+            "meta_task_per_step": 8,
+            "meta_fast_adaption_step": 5,
             "meta_dataset_train_environment_strs": ["RTX2080Ti"],
             "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
         },
@@ -255,6 +276,10 @@ train_configs = {
         "epochs": 100,
         "optimizer": "Adam",
         "meta_configs": {
+            "learning_rate": 0.005,
+            "meta_learning_rate": 0.001,
+            "meta_train_steps": 1000,
+            "meta_fast_adaption_step": 5,
             "meta_dataset_train_environment_strs": ["RTX2080Ti"],
             "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
         },
@@ -275,6 +300,11 @@ train_configs = {
         "epochs": 100,
         "optimizer": "Adam",
         "meta_configs": {
+            "learning_rate": 0.005,
+            "meta_learning_rate": 0.001,
+            "meta_train_steps": 1000,
+            "meta_task_per_step": 8,
+            "meta_fast_adaption_step": 5,
             "meta_dataset_train_environment_strs": ["RTX2080Ti"],
             "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
         },
@@ -300,6 +330,11 @@ train_configs = {
         "epochs": 100,
         "optimizer": "Adam",
         "meta_configs": {
+            "learning_rate": 0.005,
+            "meta_learning_rate": 0.001,
+            "meta_train_steps": 1000,
+            "meta_task_per_step": 8,
+            "meta_fast_adaption_step": 5,
             "meta_dataset_train_environment_strs": ["RTX2080Ti"],
             "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
         },

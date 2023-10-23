@@ -20,7 +20,7 @@ from executor.base_module import MModule
 from executor.executor import Executor
 from executor.metric import MetricUtil
 from executor.util import nested_detach, pad_np_vectors
-from objects import ModelType
+from objects import ModelType, Environment
 from .gcn import GCNLayer
 from .transformer import TransformerModel
 
@@ -31,9 +31,9 @@ class SubgraphBasedExecutor(Executor):
         self.scalers: Tuple | None = None
 
     @staticmethod
-    def subgraph_features(graph: Graph, subgraph_node_size: int = 10, op_type_encoding: str = "frequency", **kwargs) -> \
+    def subgraph_features(graph: Graph, subgraph_node_size: int = 10, step: int=5, op_type_encoding: str = "frequency", **kwargs) -> \
     Tuple[List[Dict], List[Dict]]:
-        subgraphs, _ = graph.subgraphs(subgraph_node_size=subgraph_node_size)
+        subgraphs, _ = graph.subgraphs(subgraph_node_size=subgraph_node_size, step=step)
         X, Y = list(), list()
 
         def subgraph_feature(nodes: List[GraphNode]):
@@ -62,6 +62,7 @@ class SubgraphBasedExecutor(Executor):
             # x
             feature = {
                 "x_graph_id": graph.ID,
+                "x_node_ids": "|".join([str(node.node_id) for node in nodes]),
                 "x_subgraph_feature": feature_matrix,
                 "x_adj_matrix": adj_matrix
             }
@@ -106,6 +107,7 @@ class SubgraphBasedExecutor(Executor):
         for graph in graphs:
             X_, Y_ = self.subgraph_features(graph=graph,
                                             subgraph_node_size=conf.dataset_subgraph_node_size,
+                                            step=conf.dataset_subgraph_step,
                                             op_type_encoding=conf.dataset_op_encoding,
                                             **conf.dataset_params)
             for x in X_:
@@ -126,12 +128,11 @@ class SubgraphBasedExecutor(Executor):
         pass
 
     @lru_cache(maxsize=None)
-    def _get_scalers(self):
-        train_ds = self.train_ds
+    def _get_scalers(self, raw_train_ds: MDataset):
         scaler_cls = self.conf.dataset_normalizer_cls
 
         x_subgraph_feature_array, y_nodes_durations_array, y_subgraph_durations_array = self._preprocess_required_data(
-            ds=train_ds)
+            ds=raw_train_ds)
 
         x_subgraph_feature_scaler = scaler_cls()
         x_subgraph_feature_scaler.fit(x_subgraph_feature_array)
@@ -169,7 +170,7 @@ class SubgraphBasedExecutor(Executor):
         return x_subgraph_feature_array, y_nodes_durations_array, y_subgraph_durations_array
 
     def _preprocess_dataset(self, ds: MDataset) -> MDataset:
-        x_subgraph_feature_scaler, y_nodes_durations_scaler, y_subgraph_durations_scaler = self._get_scalers()
+        x_subgraph_feature_scaler, y_nodes_durations_scaler, y_subgraph_durations_scaler = self._get_scalers(ds)
 
         processed_features = list()
         processed_labels = list()
@@ -196,45 +197,68 @@ class SubgraphBasedExecutor(Executor):
 
             processed_features.append({
                 "x_graph_id": feature["x_graph_id"],
-                "x_subgraph_feature": transformed_x_subgraph_feature,
-                "x_adj_matrix": x_adj_matrix
+                "x_node_ids": feature["x_node_ids"],
+                "x_subgraph_feature": torch.Tensor(transformed_x_subgraph_feature).to(device=self.conf.device),
+                "x_adj_matrix": torch.Tensor(x_adj_matrix).to(device=self.conf.device)
             })
 
             processed_labels.append({
                 "y_graph_id": label["y_graph_id"],
-                "y_nodes_durations": transformed_y_nodes_durations,
-                "y_subgraph_durations": transformed_y_subgraph_durations
+                "y_nodes_durations": torch.Tensor(transformed_y_nodes_durations).to(device=self.conf.device),
+                "y_subgraph_durations": torch.Tensor(transformed_y_subgraph_durations).to(device=self.conf.device)
             })
 
         ds = MDataset(processed_features, processed_labels)
         return ds
 
-    def _evaluate(self, model) -> Dict[str, float]:
-        input_batches, output_batches, eval_loss = self._dl_evaluate_pred(model)
+    def _evaluate(self, model, env: Environment, ds: MDataset) -> Dict[str, float]:
+        input_batches, output_batches, eval_loss = self._dl_evaluate_pred(model, env, ds)
 
-        batches_len = len(input_batches)
 
-        def compute_nodes_durations(outputs_):
-            x_subgraph_feature_scaler, y_nodes_durations_scaler, y_subgraph_durations_scaler = self._get_scalers()
-            nodes_durations = list()
-            for output_ in outputs_:
+        def compute_graph_nodes_durations(outputs_, node_ids_str_):
+            if self.train_mode == "single":
+                raw_ds = self.train_ds
+            elif self.train_mode == "meta":
+                raw_ds = self.meta_train_dss[env]
+            x_subgraph_feature_scaler, y_nodes_durations_scaler, y_subgraph_durations_scaler = self._get_scalers(raw_ds)
+            node_to_durations = defaultdict(list)
+            for i, output_ in enumerate(outputs_):
+                node_ids = node_ids_str_[i]
+                node_ids_ = node_ids.split("|")
+                assert len(output_) == len(node_ids_)
                 transformed: np.ndarray = y_nodes_durations_scaler.inverse_transform(output_)
-                duration = transformed.sum()
-                nodes_durations.append(duration)
-            return nodes_durations
+                for i, node_id in enumerate(node_ids_):
+                    node_to_durations[node_id].append(np.sum(transformed[i]))
+            node_to_duration = {k: np.average(v) for k, v in node_to_durations.items()}
+            return node_to_duration
 
-        graph_id_to_duration_pred = defaultdict(int)
-        for idx in range(batches_len):
-            inputs = input_batches[idx]
-            outputs = output_batches[idx]
+        graph_id_to_node_to_duration = defaultdict(lambda :defaultdict(list))
+        for inputs, outputs in zip(input_batches, output_batches):
             outputs = nested_detach(outputs)
-            outputs = outputs.numpy()
+            outputs = outputs.cpu().numpy()
             graph_ids = inputs["x_graph_id"]
-            nodes_durations = compute_nodes_durations(outputs)
+            graph_groups = defaultdict(list)
             for i, graph_id in enumerate(graph_ids):
-                node_duration = nodes_durations[i].item()
-                graph_id_to_duration_pred[graph_id] += node_duration
-        duration_metrics = MetricUtil.compute_duration_metrics(self.eval_graphs, graph_id_to_duration_pred)
+                graph_groups[graph_id].append(i)
+            
+            for graph_id, indices in graph_groups.items():
+                group_x_node_ids = [v for i, v in enumerate(inputs["x_node_ids"]) if i in indices]
+                group_outputs = [v for i, v in enumerate(outputs) if i in indices]
+                node_to_durations = compute_graph_nodes_durations(group_outputs, group_x_node_ids)
+                for node, duration in node_to_durations.items():
+                    graph_id_to_node_to_duration[graph_id][node].append(duration)
+        graph_id_to_duration_pred = dict()
+        # TODO check this!!!
+        for graph_id, node_to_duration in graph_id_to_node_to_duration.items():
+            duration_pred = 0
+            for _, duration_preds in node_to_duration.items():
+                duration_pred += np.average(duration_preds)
+            graph_id_to_duration_pred[graph_id] = duration_pred
+        if self.train_mode == "single":
+            eval_graphs = self.eval_graphs
+        elif self.train_mode == "meta":
+            eval_graphs = self.meta_eval_graphs[env]
+        duration_metrics = MetricUtil.compute_duration_metrics(eval_graphs, graph_id_to_duration_pred)
         return {"eval_loss": eval_loss, **duration_metrics}
 
 
@@ -450,8 +474,12 @@ class GRUSubgraphBasedExecutor(SubgraphBasedExecutor):
         }
 
     def _init_model(self) -> MModule | Any:
-        sample_x_dict = self.preprocessed_train_ds.features[0]
-        sample_y_dict = self.preprocessed_train_ds.labels[0]
+        if self.train_mode == "single":
+            sample_preprocessed_ds = self.preprocessed_train_ds
+        elif self.train_mode == "meta":
+            sample_preprocessed_ds = self.meta_preprocessed_train_dss[self.conf.meta_dataset_train_environments[0]]
+        sample_x_dict = sample_preprocessed_ds.features[0]
+        sample_y_dict = sample_preprocessed_ds.labels[0]
         x_node_feature_size = len(sample_x_dict["x_subgraph_feature"][0])
         y_nodes_durations_len = len(sample_y_dict["y_nodes_durations"][0])
         model_params = self.conf.model_params
