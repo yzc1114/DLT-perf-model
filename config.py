@@ -44,7 +44,6 @@ class DatasetConfigMixin:
         self.dataset_subgraph_node_size = dataset_config_js.get("dataset_subgraph_node_size", 10)
         self.dataset_subgraph_step = dataset_config_js.get("dataset_subgraph_step", 5)
         self.dataset_subgraph_grouping_count = dataset_config_js.get("dataset_subgraph_grouping_count", 10)
-        self.dataset_op_encoding = dataset_config_js.get("dataset_op_encoding", "frequency")
         self.dataset_params = dataset_config_js.get("dataset_params", dict())
         self.dataset_train_proportion = dataset_config_js.get("train_ds_proportion", 0.7)
         self.dataset_dummy = dataset_config_js.get("dataset_dummy", False)
@@ -112,7 +111,7 @@ class Config(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, TransferCo
         self.optimizer_cls = OptimizerType[train_config_js.get("optimizer", "Adam")].value
         self.learning_rate = train_config_js.get("learning_rate", 1e-3)
         meta_configs = train_config_js.get("meta_configs", 1e-3)
-        self.meta_base_learning_rate = meta_configs.get("learning_rate", 1e-3)
+        self.meta_base_learning_rate = meta_configs.get("learning_rate", 5e-4)
         self.meta_train_steps = meta_configs.get("meta_train_steps", 1000)
         self.meta_task_per_step = meta_configs.get("meta_task_per_step", 8)
         self.meta_fast_adaption_step = meta_configs.get("meta_fast_adaption_step", 5)
@@ -133,7 +132,33 @@ train_configs = {
         "dataset_normalization": "Standard",
         "dataset_op_encoding": dataset_op_encodings,
         "dataset_params": {
-            "duration_summed": False
+            "duration_summed": False,
+            "op_type_encoding": "one-hot"
+        },
+        "dataset_dummy": True,
+        "batch_size": 64,
+        "learning_rate": 1e-3,
+        "epochs": 100,
+        "optimizer": "Adam",
+        "meta_configs": {
+            "learning_rate": 0.005,
+            "meta_learning_rate": 0.001,
+            "meta_train_steps": 1000,
+            "meta_task_per_step": 8,
+            "meta_fast_adaption_step": 5,
+            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+        },
+    },
+    ModelType.MLPTestSubgraph: {
+        "model": "MLPTestSubgraph",
+        "all_seed": 42,
+        "dataset_environment_str": "RTX2080Ti",
+        "dataset_normalization": "Standard",
+        "dataset_op_encoding": dataset_op_encodings,
+        "dataset_params": {
+            "duration_summed": False,
+            "op_type_encoding": "one-hot"
         },
         "dataset_dummy": True,
         "batch_size": 64,
@@ -158,7 +183,8 @@ train_configs = {
         "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
-            "duration_summed": False
+            "duration_summed": False,
+            "op_type_encoding": "one-hot"
         },
         "dataset_dummy": True,
         "batch_size": 64,
@@ -183,7 +209,8 @@ train_configs = {
         "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
-            "duration_summed": True
+            "duration_summed": True,
+            "op_type_encoding": "one-hot"
         },
         "dataset_dummy": True,
         "batch_size": 64,
@@ -209,7 +236,8 @@ train_configs = {
         "dataset_subgraph_node_size": dataset_subgraph_node_sizes,
         "all_seed": 42,
         "dataset_params": {
-            "duration_summed": False
+            "duration_summed": False,
+            "op_type_encoding": "one-hot"
         },
         "model_params": {
             "num_layers": 5,
@@ -239,7 +267,8 @@ train_configs = {
         "dataset_subgraph_node_size": dataset_subgraph_node_sizes,
         "all_seed": 42,
         "dataset_params": {
-            "duration_summed": False
+            "duration_summed": False,
+            "op_type_encoding": "one-hot"
         },
         "model_params": {
             "num_layers": 5,
@@ -260,6 +289,31 @@ train_configs = {
             "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
         },
     },
+    ModelType.MLPTestGrouping: {
+        "model": "MLPTestGrouping",
+        "all_seed": 42,
+        "dataset_environment_str": "RTX2080Ti",
+        "dataset_normalization": "Standard",
+        "dataset_subgraph_grouping_count": dataset_subgraph_grouping_counts,
+        "dataset_op_encoding": dataset_op_encodings,
+        "dataset_params": {
+            "duration_summed": False,
+            "op_type_encoding": "one-hot"
+        },
+        "dataset_dummy": True,
+        "batch_size": 64,
+        "learning_rate": 1e-3,
+        "epochs": 100,
+        "optimizer": "Adam",
+        "meta_configs": {
+            "learning_rate": 0.005,
+            "meta_learning_rate": 0.001,
+            "meta_train_steps": 1000,
+            "meta_fast_adaption_step": 5,
+            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+        },
+    },
     ModelType.GCNGrouping: {
         "model": "GCNGrouping",
         "dataset_environment_str": "RTX2080Ti",
@@ -268,7 +322,8 @@ train_configs = {
         "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
-            "duration_summed": False
+            "duration_summed": False,
+            "op_type_encoding": "one-hot"
         },
         "dataset_dummy": True,
         "batch_size": 64,
@@ -292,7 +347,8 @@ train_configs = {
         "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
-            "duration_summed": False
+            "duration_summed": False,
+            "op_type_encoding": "one-hot"
         },
         "dataset_dummy": True,
         "batch_size": 64,
@@ -317,7 +373,8 @@ train_configs = {
         "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
-            "duration_summed": False
+            "duration_summed": False,
+            "op_type_encoding": "one-hot"
         },
         "model_params": {
             "nlayers": 6,
@@ -350,7 +407,8 @@ transfer_configs = {
         "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
-            "duration_summed": False
+            "duration_summed": False,
+            "op_type_encoding": "one-hot"
         },
         "transfer_params": {
             "freeze_layers": 3,

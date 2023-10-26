@@ -133,12 +133,12 @@ class OPBasedExecutor(Executor):
             processed_features.append({
                 "x_id": feature["x_id"],
                 "x_graph_id": feature["x_graph_id"],
-                "x_op_feature": op_feature_array[i],
+                "x_op_feature": torch.Tensor(op_feature_array[i]).to(device=self.conf.device)
             })
             processed_labels.append({
                 "y_id": label["y_id"],
                 "y_graph_id": label["y_graph_id"],
-                "y_node_durations": y_array[i]
+                "y_node_durations": torch.Tensor(y_array[i]).to(device=self.conf.device)
             })
 
         ds = MDataset(processed_features, processed_labels)
@@ -161,7 +161,7 @@ class OPBasedExecutor(Executor):
             inputs = input_batches[idx]
             logits = output_batches[idx]
             logits = nested_detach(logits)
-            logits = logits.numpy()
+            logits = logits.cpu().numpy()
             graph_ids = inputs["x_graph_id"]
             op_durations = compute_op_durations(logits)
             for i, graph_id in enumerate(graph_ids):
@@ -212,19 +212,19 @@ class PerfNetModel(MModule):
 
     def __init__(self, output_dimension, **kwargs):
         super().__init__(**kwargs)
-        self.conv1 = torch.nn.Conv1d(in_channels=1, out_channels=32, kernel_size=3, bias=True, padding_mode='zeros')
-        self.conv2 = torch.nn.Conv1d(in_channels=32, out_channels=128, kernel_size=2, bias=True, padding_mode='zeros')
+        self.conv1 = torch.nn.LazyConv1d(out_channels=32, kernel_size=3, bias=True, padding_mode='zeros')
+        self.conv2 = torch.nn.LazyConv1d(out_channels=128, kernel_size=2, bias=True, padding_mode='zeros')
         self.flatten = torch.nn.Flatten()
-        self.dense1 = torch.nn.Linear(3200, 32)
+        self.dense1 = torch.nn.LazyLinear(32)
         self.relu1 = ReLU()
-        self.dense2 = torch.nn.Linear(32, 64)
+        self.dense2 = torch.nn.LazyLinear(64)
         self.relu2 = ReLU()
-        self.dense3 = torch.nn.Linear(64, 128)
+        self.dense3 = torch.nn.LazyLinear(128)
         self.relu3 = ReLU()
-        self.dense4 = torch.nn.Linear(128, 256)
+        self.dense4 = torch.nn.LazyLinear(256)
         self.relu4 = ReLU()
         self.dropout = torch.nn.Dropout(p=0.3)
-        self.output = torch.nn.Linear(256, output_dimension)
+        self.output = torch.nn.LazyLinear(output_dimension)
         self.loss_fn = MSELoss()
 
     def forward(self, X):
@@ -264,8 +264,12 @@ class MLP_OPBasedExecutor(OPBasedExecutor):
         return {}
 
     def _init_model(self) -> MModule | Any:
-        sample_x_dict = self.preprocessed_train_ds.features[0]
-        sample_y_dict = self.preprocessed_eval_ds.labels[0]
+        if self.train_mode == "single":
+            sample_preprocessed_ds = self.preprocessed_train_ds
+        elif self.train_mode == "meta":
+            sample_preprocessed_ds = self.meta_preprocessed_train_dss[self.conf.meta_dataset_train_environments[0]]
+        sample_x_dict = sample_preprocessed_ds.features[0]
+        sample_y_dict = sample_preprocessed_ds.labels[0]
         return MLPModel(input_dimension=len(sample_x_dict["x_op_feature"]),
                         output_dimension=len(sample_y_dict["y_node_durations"]))
 
@@ -283,7 +287,11 @@ class PerfNet_OPBasedExecutor(OPBasedExecutor):
         return {}
 
     def _init_model(self) -> MModule | Any:
-        processed_train_ds = self.preprocessed_train_ds
+        if self.train_mode == "single":
+            sample_preprocessed_ds = self.preprocessed_train_ds
+        elif self.train_mode == "meta":
+            sample_preprocessed_ds = self.meta_preprocessed_train_dss[self.conf.meta_dataset_train_environments[0]]
+        processed_train_ds = sample_preprocessed_ds
         sample_y_dict = processed_train_ds.labels[0]
         return PerfNetModel(output_dimension=len(sample_y_dict["y_node_durations"]))
 
@@ -350,6 +358,7 @@ class GBDT_OPBasedExecutor(OPBasedExecutor):
 
     def single_train(self):
         logging.info(f"{self.model_type} starts training.")
+        self._prepare_single_dataset()
         save_path = self._generate_save_path(prefix="single_train")
         ds = self.preprocessed_train_ds
         X, Y = self.dataset_to_samples(ds)

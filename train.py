@@ -116,9 +116,11 @@ train_models = [
     # ModelType.GCNSubgraph,
     # ModelType.PerfNet,
     # ModelType.Transformer,
+    # ModelType.MLPTestSubgraph,
+    # ModelType.MLPTestGrouping,
     # ModelType.LSTM,
-    ModelType.GRU,
-    # ModelType.GCNGrouping
+    # ModelType.GRU,
+    ModelType.GCNGrouping
 ]
 
 transfer_models = [
@@ -126,8 +128,8 @@ transfer_models = [
 ]
 
 tasks = {
-    # "single_train",
-    "meta_train",
+    "single_train",
+    # "meta_train",
     # "grid_search",
     # "single_transfer",
     # "grid_search_transfer"

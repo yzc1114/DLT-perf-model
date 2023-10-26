@@ -4,15 +4,15 @@ from typing import Tuple, Optional, Union, List, Dict
 
 import numpy as np
 
-op_freq: Dict['OperatorType', float] | None = None
+# op_freq: Dict['OperatorType', float] | None = None
 
 
-def set_operator_freq(op_freq_count_dict: Dict['OperatorType', int]):
-    global op_freq
-    op_freq = dict()
-    total_count = sum(op_freq_count_dict.values())
-    for op, count in op_freq_count_dict.items():
-        op_freq[op] = 1. * count / total_count
+# def set_operator_freq(op_freq_count_dict: Dict['OperatorType', int]):
+#     global op_freq
+#     op_freq = dict()
+#     total_count = sum(op_freq_count_dict.values())
+#     for op, count in op_freq_count_dict.items():
+#         op_freq[op] = 1. * count / total_count
 
 
 class OperatorType(Enum):
@@ -33,11 +33,9 @@ class OperatorType(Enum):
         op_types = [op for op in OperatorType]
         if method == "one-hot":
             return [1 if self == op_type_ else 0 for op_type_ in op_types]
-        elif method == "frequency":
-            return [op_freq.get(self, 0)]
         else:
             raise ValueError(
-                "Invalid method. Must be 'one-hot' or 'frequency'.")
+                "Invalid method. Must be in ['one-hot'].")
 
 
 class Operator:

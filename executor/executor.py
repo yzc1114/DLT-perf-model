@@ -151,14 +151,6 @@ class Executor(ABC):
         model = torch.load(ckpt_filepath)
         return model
 
-    def _create_optimizer_and_scheduler(self, model: Module, num_training_steps) -> Tuple[
-        torch.optim.Optimizer, LRScheduler]:
-        optimizer_cls = self.conf.optimizer_cls
-        lr = self.conf.learning_rate
-        optimizer = optimizer_cls(model.parameters(), lr=lr)
-        lr_scheduler = ConstantLR(optimizer=optimizer)
-        return optimizer, lr_scheduler
-
     def single_train(self):
         self.train_mode = "single"
         self._prepare_single_dataset()
@@ -166,11 +158,14 @@ class Executor(ABC):
         processed_train_ds = self.preprocessed_train_ds
         train_dl = DataLoader(processed_train_ds, batch_size=self.conf.batch_size, shuffle=True)
         model = self.init_model()
+        model.to(self.conf.device)
         if self.conf.transfer_params is not None:
             model.prepare_transfer(**self.conf.transfer_params)
         model.train()
         curr_train_step = 0
-        optimizer, lr_scheduler = self._create_optimizer_and_scheduler(model, len(train_dl))
+        optimizer_cls = self.conf.optimizer_cls
+        lr = self.conf.learning_rate
+        optimizer = optimizer_cls(model.parameters(), lr=lr)
         start = time.time_ns()
         logging.info(f"{self.model_type} start single training.")
         for epoch in range(self.conf.num_train_epochs):
@@ -205,8 +200,25 @@ class Executor(ABC):
                     })
                     self.save_model(save_path=save_path, model=model, curr_steps=curr_train_step, curr_loss_value=loss_value)
                     model.train()
-            lr_scheduler.step()
         self.save_train_plot(save_path)
+
+    def meta_fast_adapt(self, compute_loss, adaptation_task, learner, meta_fast_adaption_step):
+        adaptation_data, adaptation_labels = adaptation_task
+
+        # Fast Adaptation
+        for step in range(meta_fast_adaption_step):
+            with torch.backends.cudnn.flags(enabled=False):
+                train_error = compute_loss(learner(adaptation_data), adaptation_labels)
+                learner.adapt(train_error)
+
+    def meta_sample_task(self, env: Environment, batch_size: int) -> Tuple[Environment, Tuple[torch.Tensor, torch.Tensor]]:
+        ds = self.meta_preprocessed_train_dss[env]
+        if env not in self.meta_preprocessed_train_data_loaders:
+            sampler = RandomSampler(ds, replacement=False)
+            self.meta_preprocessed_train_data_loaders[env] = InfiniteIterator(DataLoader(self.meta_preprocessed_train_dss[env], sampler=sampler, batch_size=batch_size))
+        dl = self.meta_preprocessed_train_data_loaders[env]
+        task = next(dl)
+        return task
 
     def meta_train(self):
         self.train_mode = "meta"
@@ -222,15 +234,6 @@ class Executor(ABC):
         meta_tps = self.conf.meta_task_per_step
         meta_shots = self.conf.meta_shots
         meta_fast_adaption_step = self.conf.meta_fast_adaption_step
-
-        def sample_task(env: Environment, batch_size: int) -> Tuple[Environment, Tuple[torch.Tensor, torch.Tensor]]:
-            ds = self.meta_preprocessed_train_dss[env]
-            if env not in self.meta_preprocessed_train_data_loaders:
-                sampler = RandomSampler(ds, replacement=False)
-                self.meta_preprocessed_train_data_loaders[env] = InfiniteIterator(DataLoader(self.meta_preprocessed_train_dss[env], sampler=sampler, batch_size=meta_adaption_batch_size))
-            dl = self.meta_preprocessed_train_data_loaders[env]
-            task = next(dl)
-            return task
         
         meta_model = l2l.algorithms.MAML(model, lr=meta_lr)
         opt = torch.optim.Adam(meta_model.parameters(), lr=lr)
@@ -239,21 +242,21 @@ class Executor(ABC):
             iteration_error = 0.0
             for _ in range(meta_tps):
                 learner = meta_model.clone()
-                meta_adaption_batch_size = self.conf.meta_adaption_batch_size
                 envs = self.meta_preprocessed_train_dss.keys()
                 env = random.choice(list(envs))
+                meta_adaption_batch_size = self.conf.meta_adaption_batch_size
                 eval_data_size = meta_adaption_batch_size - meta_shots
-                adaptation_data, adaptation_labels = sample_task(env=env, batch_size=meta_shots)
-                evaluation_data, evaluation_labels = sample_task(env=env, batch_size=eval_data_size)
-
+                adaptation_task = self.meta_sample_task(env=env, batch_size=meta_shots)
+                self.meta_fast_adapt(model.compute_loss, adaptation_task, learner, meta_fast_adaption_step)
                 # Fast Adaptation
-                for step in range(meta_fast_adaption_step):
-                    train_error = model.compute_loss(learner(adaptation_data), adaptation_labels)
-                    learner.adapt(train_error)
 
+                evaluation_task = self.meta_sample_task(env=env, batch_size=eval_data_size)
+                evaluation_data, evaluation_labels = evaluation_task
                 # Compute validation loss
-                predictions = learner(evaluation_data)
-                valid_error = model.compute_loss(predictions, evaluation_labels)
+                with torch.backends.cudnn.flags(enabled=False):
+                    predictions = learner(evaluation_data)
+                    valid_error = model.compute_loss(predictions, evaluation_labels)
+                    # valid_error.backward()
                 iteration_error += valid_error
 
             iteration_error /= meta_tps
@@ -262,15 +265,22 @@ class Executor(ABC):
             self.train_records.setdefault("loss", list())
             self.train_records["loss"].append(loss_value)
 
+            opt.zero_grad()
+            # Take the meta-learning step
+            iteration_error.backward()
+            opt.step()
+
             if curr_train_step % self.conf.eval_steps == 0:
                 now = time.time_ns()
                 train_dur = (now - start) / 1e9
                 logging.info(f"{self.model_type} trained for {train_dur} seconds.")
                 logging.info(f"{self.model_type} eval at step {curr_train_step}.")
-                model.eval()
                 metrics = dict()
                 for env, ds in self.meta_preprocessed_eval_dss.items():
-                    metrics[str(env)] = self._evaluate(model, env, ds)
+                    learner = model.clone()
+                    adaptation_task = self.meta_sample_task(env=env, batch_size=meta_shots)
+                    self.meta_fast_adapt(model.compute_loss, adaptation_task, learner, meta_fast_adaption_step)
+                    metrics[str(env)] = self._evaluate(learner, env, ds)
                 logging.info(f"{self.model_type} train loss: {loss_value}, eval metrics: {metrics}")
                 metrics["train_loss"] = loss_value
 
@@ -280,12 +290,8 @@ class Executor(ABC):
                     "step": curr_train_step,
                     "duration": train_dur
                 })
-                self.save_model(save_path=save_path, model=model, curr_steps=curr_train_step, curr_loss_value=loss_value)
+                self.save_model(save_path=save_path, model=meta_model, curr_steps=curr_train_step, curr_loss_value=loss_value)
                 model.train()
-            # Take the meta-learning step
-            opt.zero_grad()
-            iteration_error.backward()
-            opt.step()
 
     def save_train_plot(self, save_path):
         fig, axes = plt.subplots(1, 3, figsize=(15, 5))
@@ -335,8 +341,13 @@ class Executor(ABC):
         model = self.init_model()
         self.train_mode = "meta"
         self._prepare_meta_dataset()
+        meta_shots = self.conf.meta_shots
+        meta_fast_adaption_step = self.conf.meta_fast_adaption_step
         metrics = dict()
         for env, ds in self.meta_preprocessed_eval_dss.items():
+            learner = model.clone()
+            adaptation_task = self.meta_sample_task(env=env, batch_size=meta_shots)
+            self.meta_fast_adapt(model.compute_loss, adaptation_task, learner, meta_fast_adaption_step)
             metrics[str(env)] = self._evaluate(model, env, ds)
         logging.info(f"{self.model_type} evaluated metrics: {metrics}")
         return metrics

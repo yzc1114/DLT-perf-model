@@ -27,7 +27,7 @@ class GroupingBasedExecutor(Executor):
         self.scalers: Tuple | None = None
 
     @staticmethod
-    def full_graph_feature(graph, subgraph_count: int = 10, op_type_encoding: str = "one-hot", **kwargs) -> Tuple[
+    def full_graph_feature(graph: Graph, subgraph_count: int = 10, dataset_params: Dict = {}) -> Tuple[
         Dict[str, np.ndarray], Dict]:
         subgraphs, node_id_to_group_idx = graph.subgraphs(subgraph_count=subgraph_count)
 
@@ -35,7 +35,9 @@ class GroupingBasedExecutor(Executor):
         for subgraph in subgraphs:
             subgraph_features = list()
             for node in subgraph:
-                node_feature = np.array(node.op.to_feature_array(op_type_encoding=op_type_encoding, mode="complex"))
+                node_feature = np.array(node.op.to_feature_array(
+                    op_type_encoding=dataset_params.get("op_type_encoding", "one-hot"), 
+                    mode=dataset_params.get("mode", "complex")))
                 subgraph_features.append(node_feature)
             if len(subgraph_features) == 0:
                 feature_matrix.append(np.zeros(1))
@@ -95,8 +97,7 @@ class GroupingBasedExecutor(Executor):
         for graph in graphs:
             x, y = self.full_graph_feature(graph,
                                            subgraph_count=conf.dataset_subgraph_grouping_count,
-                                           op_type_encoding=conf.dataset_op_encoding,
-                                           **conf.dataset_params)
+                                           dataset_params=conf.dataset_params)
             feature_matrix_size = len(x["x_feature_matrix"][0])
             adjacency_matrix_size = len(x["x_adjacency_matrix"][0])
             feature_matrix_maxsize = max(feature_matrix_maxsize, feature_matrix_size)
@@ -164,12 +165,12 @@ class GroupingBasedExecutor(Executor):
             x_adjacency_matrix = np.array(feature["x_adjacency_matrix"]).astype(np.float32)
             processed_features.append({
                 "x_graph_id": feature["x_graph_id"],
-                "x_feature_matrix": graph_feature_arrays[i],
-                "x_adjacency_matrix": x_adjacency_matrix
+                "x_feature_matrix": torch.Tensor(graph_feature_arrays[i]).to(self.conf.device),
+                "x_adjacency_matrix": torch.Tensor(x_adjacency_matrix).to(self.conf.device)
             })
             processed_labels.append({
                 "y_graph_id": label["y_graph_id"],
-                "y_graph_duration": y_array[i],
+                "y_graph_duration": torch.Tensor(y_array[i]).to(self.conf.device),
             })
 
         ds = MDataset(processed_features, processed_labels)
@@ -192,7 +193,7 @@ class GroupingBasedExecutor(Executor):
             inputs = input_batches[idx]
             logits = output_batches[idx]
             logits = nested_detach(logits)
-            logits = logits.numpy()
+            logits = logits.cpu().numpy()
             graph_ids = inputs["x_graph_id"]
             graph_durations = compute_graph_duration(logits)
             for i, graph_id in enumerate(graph_ids):
@@ -215,8 +216,12 @@ class MLPTest_GroupingBasedExecutor(GroupingBasedExecutor):
         return {}
 
     def _init_model(self) -> MModule | Any:
-        sample_x_dict = self.preprocessed_train_ds.features[0]
-        sample_y_dict = self.preprocessed_train_ds.labels[0]
+        if self.train_mode == "single":
+            sample_preprocessed_ds = self.preprocessed_train_ds
+        elif self.train_mode == "meta":
+            sample_preprocessed_ds = self.meta_preprocessed_train_dss[self.conf.meta_dataset_train_environments[0]]
+        sample_x_dict = sample_preprocessed_ds.features[0]
+        sample_y_dict = sample_preprocessed_ds.labels[0]
         shape = len(sample_x_dict["x_feature_matrix"]), len(sample_x_dict["x_feature_matrix"][0])
         return MLPTest_GroupingModel(input_shape=shape,
                                      output_dimension=len(sample_y_dict["y_graph_duration"]))
@@ -292,8 +297,12 @@ class GCNGroupingBasedExecutor(GroupingBasedExecutor):
         }
 
     def _init_model(self) -> MModule | Any:
-        sample_x_dict = self.preprocessed_train_ds.features[0]
-        sample_y_dict = self.preprocessed_train_ds.labels[0]
+        if self.train_mode == "single":
+            sample_preprocessed_ds = self.preprocessed_train_ds
+        elif self.train_mode == "meta":
+            sample_preprocessed_ds = self.meta_preprocessed_train_dss[self.conf.meta_dataset_train_environments[0]]
+        sample_x_dict = sample_preprocessed_ds.features[0]
+        sample_y_dict = sample_preprocessed_ds.labels[0]
         x_node_feature_size = len(sample_x_dict["x_feature_matrix"][0])
         y_graph_duration_len = len(sample_y_dict["y_graph_duration"])
         model_params = self.conf.model_params

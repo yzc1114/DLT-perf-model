@@ -7,7 +7,6 @@ from torch.utils.data import Dataset
 
 from objects import Environment
 from .graph import Graph
-from .op import set_operator_freq
 
 datasets_path = str(pathlib.Path(__file__) / "datasets")
 
@@ -37,10 +36,6 @@ def load_graphs(environment: Environment, train_or_eval: str = "train", use_dumm
         return list()
 
     graphs = _load_graphs()
-    if train_or_eval == "train":
-        # analyze op freq
-        op_freq = analyze_op_freq(graphs)
-        set_operator_freq(op_freq)
     return graphs
 
 

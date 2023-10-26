@@ -130,8 +130,11 @@ class Graph:
             return generate_dummy()
         raise NotImplementedError()
 
-    def subgraphs(self, subgraph_node_size: Optional[int] = None, step: Optional[int]=None) -> \
+    def subgraphs(self, subgraph_count: Optional[int]=None, subgraph_node_size: Optional[int] = None, step: Optional[int]=None) -> \
             Tuple[List[List[GraphNode]], Dict[int, int]]:
+        if subgraph_node_size is None:
+            assert subgraph_count is not None
+            subgraph_node_size = math.ceil(len(self.nodes) / subgraph_count)
         # subgraphs, node graph mapping
         if step is None:
             step = subgraph_node_size
@@ -139,13 +142,13 @@ class Graph:
         node_id_to_group_idx = dict()
         idx = 0
         while True:
-            if idx > len(self.nodes):
+            if idx >= len(self.nodes):
                 break
             subgraph_nodes = self.nodes[idx: 
                                         min(idx + subgraph_node_size, len(self.nodes))]
             subgraphs.append(subgraph_nodes)
             for node in subgraph_nodes:
-                node_id_to_group_idx[node.node_id] = idx
+                node_id_to_group_idx[node.node_id] = idx//step
             dummy_node_require = False
             while len(subgraph_nodes) < subgraph_node_size:
                 subgraph_nodes.append(GraphNode.dummy_node())

@@ -31,7 +31,7 @@ class SubgraphBasedExecutor(Executor):
         self.scalers: Tuple | None = None
 
     @staticmethod
-    def subgraph_features(graph: Graph, subgraph_node_size: int = 10, step: int=5, op_type_encoding: str = "frequency", **kwargs) -> \
+    def subgraph_features(graph: Graph, subgraph_node_size: int = 10, step: int=5, dataset_params: Dict={}) -> \
     Tuple[List[Dict], List[Dict]]:
         subgraphs, _ = graph.subgraphs(subgraph_node_size=subgraph_node_size, step=step)
         X, Y = list(), list()
@@ -39,7 +39,9 @@ class SubgraphBasedExecutor(Executor):
         def subgraph_feature(nodes: List[GraphNode]):
             feature_matrix = list()
             for node in nodes:
-                feature = node.op.to_feature_array(op_type_encoding=op_type_encoding, mode="complex")
+                feature = node.op.to_feature_array(
+                    op_type_encoding=dataset_params.get("op_type_encoding", "one-hot"),
+                    mode=dataset_params.get("mode", "complex"))
                 feature = np.concatenate([feature, graph.graph_meta_feature()])
                 feature = np.array(feature)
                 feature_matrix.append(feature)
@@ -108,8 +110,7 @@ class SubgraphBasedExecutor(Executor):
             X_, Y_ = self.subgraph_features(graph=graph,
                                             subgraph_node_size=conf.dataset_subgraph_node_size,
                                             step=conf.dataset_subgraph_step,
-                                            op_type_encoding=conf.dataset_op_encoding,
-                                            **conf.dataset_params)
+                                            dataset_params=conf.dataset_params)
             for x in X_:
                 subgraph_feature_size = len(x["x_subgraph_feature"][0])
                 subgraph_feature_maxsize = max(subgraph_feature_maxsize, subgraph_feature_size)
@@ -275,8 +276,12 @@ class MLPTest_SubgraphBasedExecutor(SubgraphBasedExecutor):
         return {}
 
     def _init_model(self) -> MModule | Any:
-        sample_x_dict = self.preprocessed_train_ds.features[0]
-        sample_y_dict = self.preprocessed_train_ds.labels[0]
+        if self.train_mode == "single":
+            sample_preprocessed_ds = self.preprocessed_train_ds
+        elif self.train_mode == "meta":
+            sample_preprocessed_ds = self.meta_preprocessed_train_dss[self.conf.meta_dataset_train_environments[0]]
+        sample_x_dict = sample_preprocessed_ds.features[0]
+        sample_y_dict = sample_preprocessed_ds.labels[0]
         x_node_feature_count = len(sample_x_dict["x_subgraph_feature"])
         x_node_feature_size = len(sample_x_dict["x_subgraph_feature"][0])
         y_nodes_duration_count = len(sample_y_dict["y_nodes_durations"])
@@ -355,8 +360,12 @@ class TransformerSubgraphBasedExecutor(SubgraphBasedExecutor):
         }
 
     def _init_model(self) -> MModule | Any:
-        sample_x_dict = self.preprocessed_train_ds.features[0]
-        sample_y_dict = self.preprocessed_train_ds.labels[0]
+        if self.train_mode == "single":
+            sample_preprocessed_ds = self.preprocessed_train_ds
+        elif self.train_mode == "meta":
+            sample_preprocessed_ds = self.meta_preprocessed_train_dss[self.conf.meta_dataset_train_environments[0]]
+        sample_x_dict = sample_preprocessed_ds.features[0]
+        sample_y_dict = sample_preprocessed_ds.labels[0]
         x_node_feature_size = len(sample_x_dict["x_subgraph_feature"][0])
         nodes_durations_len = len(sample_y_dict["y_nodes_durations"][0])
         model_params = self.conf.model_params
@@ -419,8 +428,12 @@ class LSTMSubgraphBasedExecutor(SubgraphBasedExecutor):
         }
 
     def _init_model(self) -> MModule | Any:
-        sample_x_dict = self.preprocessed_train_ds.features[0]
-        sample_y_dict = self.preprocessed_train_ds.labels[0]
+        if self.train_mode == "single":
+            sample_preprocessed_ds = self.preprocessed_train_ds
+        elif self.train_mode == "meta":
+            sample_preprocessed_ds = self.meta_preprocessed_train_dss[self.conf.meta_dataset_train_environments[0]]
+        sample_x_dict = sample_preprocessed_ds.features[0]
+        sample_y_dict = sample_preprocessed_ds.labels[0]
         x_node_feature_size = len(sample_x_dict["x_subgraph_feature"][0])
         y_nodes_durations_len = len(sample_y_dict["y_nodes_durations"][0])
         model_params = self.conf.model_params
@@ -540,8 +553,12 @@ class GCNSubgraphBasedExecutor(SubgraphBasedExecutor):
         }
 
     def _init_model(self) -> MModule | Any:
-        sample_x_dict = self.preprocessed_train_ds.features[0]
-        sample_y_dict = self.preprocessed_train_ds.labels[0]
+        if self.train_mode == "single":
+            sample_preprocessed_ds = self.preprocessed_train_ds
+        elif self.train_mode == "meta":
+            sample_preprocessed_ds = self.meta_preprocessed_train_dss[self.conf.meta_dataset_train_environments[0]]
+        sample_x_dict = sample_preprocessed_ds.features[0]
+        sample_y_dict = sample_preprocessed_ds.labels[0]
         x_node_feature_size = len(sample_x_dict["x_subgraph_feature"][0])
         y_nodes_durations_len = len(sample_y_dict["y_nodes_durations"][0])
         model_params = self.conf.model_params
@@ -550,6 +567,7 @@ class GCNSubgraphBasedExecutor(SubgraphBasedExecutor):
             final_params[k] = model_params.get(k, v)
         if final_params["dim_h"] is None:
             final_params["dim_h"] = x_node_feature_size
+        # final_params["device"] = self.conf.device
         return GCNSubgraphModel(
             dim_feats=x_node_feature_size,
             dim_out=y_nodes_durations_len,
