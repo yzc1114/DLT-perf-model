@@ -417,8 +417,8 @@ transfer_configs = {
         "dataset_dummy": True,
         "batch_size": 64,
         "learning_rate": 1e-3,
-        "epochs": 10,
+        "epochs": 100,
         "optimizer": "Adam",
         "resume_from_ckpt": "2023-06-09_14-57-45/ckpt_300.pth"
-    }
+    },
 }

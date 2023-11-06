@@ -162,7 +162,7 @@ class Executor(ABC):
         if self.conf.transfer_params is not None:
             model.prepare_transfer(**self.conf.transfer_params)
         model.train()
-        curr_train_step = 0
+        curr_train_step = -1
         optimizer_cls = self.conf.optimizer_cls
         lr = self.conf.learning_rate
         optimizer = optimizer_cls(model.parameters(), lr=lr)
@@ -236,7 +236,7 @@ class Executor(ABC):
         meta_fast_adaption_step = self.conf.meta_fast_adaption_step
         
         meta_model = l2l.algorithms.MAML(model, lr=meta_lr)
-        opt = torch.optim.Adam(meta_model.parameters(), lr=lr)
+        opt = self.conf.optimizer_cls(model.parameters(), lr=lr)
 
         for curr_train_step in range(meta_train_steps):
             iteration_error = 0.0

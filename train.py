@@ -101,7 +101,7 @@ def launch_train_once(train_model: ModelType, _configs: Dict[ModelType, Dict], m
     logging.info(f"{train_model} {mode} train ends. training duration = {train_over_time - now:.2f}s.")
 
 
-def launch_train(models: List[ModelType], launch_lambda):
+def launch(models: List[ModelType], launch_lambda):
     for i, train_model in enumerate(models):
         now = time.time()
         logging.info(f"launching {train_model} starts. rest models: {[m.name for m in train_models[i + 1:]]}")
@@ -138,29 +138,29 @@ tasks = {
 if __name__ == '__main__':
     if "single_train" in tasks:
         # launch single train
-        launch_train(models=train_models,
+        launch(models=train_models,
                      launch_lambda=lambda train_model: launch_train_once(train_model, train_configs, "single"))
 
     if "meta_train" in tasks:
         # launch single train
-        launch_train(models=train_models,
+        launch(models=train_models,
                      launch_lambda=lambda train_model: launch_train_once(train_model, train_configs, "meta"))
 
     if "grid_search" in tasks:
         # launch grid search on model params
-        launch_train(models=train_models,
+        launch(models=train_models,
                      launch_lambda=lambda train_model: launch_grid_search(train_model, train_configs,
                                                                           on_common_params=True,
                                                                           model_specific_gs_params_name="model_params"))
 
     if "single_transfer" in tasks:
         # launch single transfer train
-        launch_train(models=transfer_models,
+        launch(models=transfer_models,
                      launch_lambda=lambda train_model: launch_train_once(train_model, transfer_configs, "single"))
 
     if "grid_search_transfer" in tasks:
         # launch grid search on transfer params
-        launch_train(models=transfer_models,
+        launch(models=transfer_models,
                      launch_lambda=lambda train_model: launch_grid_search(train_model, transfer_configs,
                                                                           on_common_params=False,
                                                                           model_specific_gs_params_name="transfer_params"))

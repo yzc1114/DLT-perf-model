@@ -17,8 +17,10 @@ class MetricUtil:
         y_hat = np.array(y_hat)
         y = np.array(y)
         MRE = np.sum(np.abs(y - y_hat) / y) / len(y)
+        MAE = np.sum(np.abs(y - y_hat)) / np.sum(y)
         RMSE = np.sqrt(np.sum(np.power(y - y_hat, 2)) / len(y))
         return {
             "MRE": MRE,
+            "MAE": MAE,
             "RMSE": RMSE
         }
