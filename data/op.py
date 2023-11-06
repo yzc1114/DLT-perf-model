@@ -4,16 +4,6 @@ from typing import Tuple, Optional, Union, List, Dict
 
 import numpy as np
 
-# op_freq: Dict['OperatorType', float] | None = None
-
-
-# def set_operator_freq(op_freq_count_dict: Dict['OperatorType', int]):
-#     global op_freq
-#     op_freq = dict()
-#     total_count = sum(op_freq_count_dict.values())
-#     for op, count in op_freq_count_dict.items():
-#         op_freq[op] = 1. * count / total_count
-
 
 class OperatorType(Enum):
     Dummy = 0
@@ -38,16 +28,29 @@ class OperatorType(Enum):
                 "Invalid method. Must be in ['one-hot'].")
 
 
+class OperatorMode(Enum):
+    Forward = 0
+    Backward = 1
+    Update = 2
+
+    @lru_cache(maxsize=None)
+    def encode(self) -> List:
+        op_modes = [mode for mode in OperatorMode]
+        return [1 if self == op_mode_ else 0 for op_mode_ in op_modes]
+
+
 class Operator:
     def __init__(self,
                  operator_type: OperatorType,
-                 input_tensor_size: int,
-                 weight_tensor_size: int,
-                 output_tensor_size: int,
-                 FLOPS: float,
+                 operator_mode: OperatorMode,
+                 input_tensor_size: int=0,
+                 weight_tensor_size: int=0,
+                 output_tensor_size: int=0,
+                 FLOPS: float=0,
                  hyper_parameters: Optional[Tuple[Union[float, int]]] = None
                  ):
         self.operator_type: OperatorType = operator_type
+        self.operator_mode: OperatorMode = operator_mode
         self.input_tensor_size: int = input_tensor_size
         self.weight_tensor_size: int = weight_tensor_size
         self.output_tensor_size: int = output_tensor_size
@@ -57,12 +60,13 @@ class Operator:
 
     @staticmethod
     def dummy_op():
-        return Operator(OperatorType.Dummy, 0, 0, 0, 0)
+        return Operator(OperatorType.Dummy, OperatorMode.Forward, 0, 0, 0, 0)
 
     def to_feature_array(self, op_type_encoding, mode):
         if mode == "complex":
             complex_feature_vector = [
                 *self.operator_type.encode(method=op_type_encoding),
+                *self.operator_mode.encode(),
                 self.input_tensor_size,
                 self.weight_tensor_size,
                 self.output_tensor_size,
@@ -74,6 +78,7 @@ class Operator:
         elif mode == "simple":
             simple_feature_vector = [
                 *self.operator_type.encode(method=op_type_encoding),
+                *self.operator_mode.encode(),
                 self.input_tensor_size,
             ]
             return np.array(simple_feature_vector)

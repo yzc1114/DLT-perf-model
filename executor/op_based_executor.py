@@ -47,12 +47,7 @@ class OPBasedExecutor(Executor):
             x = {
                 "x_op_feature": x_op_feature
             }
-            attrs = ["forward_times", "backward_times", "optimizer_times"]
-            node_durations = tuple(
-                abs(getattr(node, attr)[0] - getattr(node, attr)[1])
-                for attr in attrs
-            )
-            node_durations = (np.sum(node_durations),) if duration_summed else node_durations
+            node_durations = (node.duration,)
 
             x["x_id"] = i
             x["x_graph_id"] = g.ID

@@ -7,29 +7,26 @@ from typing import List, Optional, Dict, Tuple
 import numpy as np
 
 from objects import GPUType, OptimizerType
-from .op import Operator, OperatorType
+from .op import Operator, OperatorType, OperatorMode
 
 
 class GraphNode:
     def __init__(self,
                  node_id: int,
                  op: Operator,
-                 forward_times: Tuple[float, float],
-                 backward_times: Tuple[float, float],
-                 optimizer_times: Tuple[float, float],
+                 duration: int,
+                 gap: int,
                  neighbors: Optional[List[Operator]] = None):
         self.node_id: int = node_id
         self.op: Operator = op
-        self.forward_times: Tuple[float, float] = forward_times
-        self.backward_times: Tuple[float, float] = backward_times
-        self.optimizer_times: Tuple[float, float] = optimizer_times
+        self.duration: int = duration
+        self.gap: int = gap
         self.neighbors: List[GraphNode] = list(
         ) if neighbors is None else neighbors
 
     @staticmethod
     def dummy_node():
-        return GraphNode(node_id=random.randint(1000, 1e6), op=Operator.dummy_op(), forward_times=(0, 0), backward_times=(0, 0),
-                         optimizer_times=(0, 0))
+        return GraphNode(node_id=random.randint(1000, 1e6), op=Operator.dummy_op(), duration=0, gap=0)
 
     def add_neighbors(self, *neighbors: 'GraphNode'):
         self.neighbors.extend(neighbors)
@@ -45,8 +42,6 @@ class GraphNode:
     def __ne__(self, other):
         return not self.__eq__(other)
 
-
-DurationTuple = namedtuple(typename="DurationTuple", field_names=["forward", "backward", "optimization"])
 
 
 class Graph:
@@ -66,14 +61,9 @@ class Graph:
         self.graph_duration = self._init_graph_duration()
 
     def _init_graph_duration(self) -> float:
-        attrs = ["forward_times", "backward_times", "optimizer_times"]
-        min_, max_ = np.Inf, 0
+        graph_duration = 0
         for node in self.nodes:
-            for attr in attrs:
-                t = getattr(node, attr)
-                min_ = np.min((min_, *t))
-                max_ = np.max((max_, *t))
-        graph_duration = max_ - min_
+            graph_duration += node.duration + node.gap
         return graph_duration
 
     @staticmethod
@@ -88,11 +78,14 @@ class Graph:
             optimizer_type = OptimizerType.Adam
             operator_types = [OperatorType.Add,
                               OperatorType.Conv2d, OperatorType.Relu]
+            operator_modes = [OperatorMode.Forward,
+                              OperatorMode.Backward, OperatorMode.Update]
 
             num_nodes = rand.randint(10, 100)
             nodes = list()
             for i in range(num_nodes):
                 op_type = rand.choice(operator_types)
+                op_mode = rand.choice(operator_modes)
                 hyper_param_cnt = rand.randint(0, 10)
                 args = {
                     'input_tensor_size': rand.randint(1, 10),
@@ -101,25 +94,14 @@ class Graph:
                     'FLOPS': rand.uniform(0, 1),
                     'hyper_parameters': tuple(rand.uniform(0, 1) for i in range(hyper_param_cnt))
                 }
-                op = Operator(op_type, **args)
+                op = Operator(op_type, op_mode, **args)
                 last_node = None if len(nodes) == 0 else nodes[-1]
 
-                def added_times(last_node_, attr):
-                    if last_node_ is None:
-                        start_time = rand.uniform(0, 1)
-                        duration = rand.uniform(0, 1)
-                        return start_time, start_time + duration
-
-                    times = getattr(last_node_, attr)
-                    start_time = times[-1] + rand.uniform(0, 1)
-                    duration = rand.uniform(0, 1)
-                    return start_time, start_time + duration
-
+                duration, gap = rand.uniform(0, 1), rand.uniform(0, 1)
                 current_node = GraphNode(i,
                                          op,
-                                         forward_times=added_times(last_node, "forward_times"),
-                                         backward_times=added_times(last_node, "backward_times"),
-                                         optimizer_times=added_times(last_node, "optimizer_times"), )
+                                         duration=duration,
+                                         gap=gap)
                 if last_node is not None:
                     last_node.add_neighbors(current_node)
                 nodes.append(current_node)

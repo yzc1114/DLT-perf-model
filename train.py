@@ -116,11 +116,11 @@ train_models = [
     # ModelType.GCNSubgraph,
     # ModelType.PerfNet,
     # ModelType.Transformer,
-    # ModelType.MLPTestSubgraph,
+    ModelType.MLPTestSubgraph,
     # ModelType.MLPTestGrouping,
     # ModelType.LSTM,
     # ModelType.GRU,
-    ModelType.GCNGrouping
+    # ModelType.GCNGrouping
 ]
 
 transfer_models = [

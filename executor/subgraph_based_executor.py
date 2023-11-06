@@ -70,23 +70,18 @@ class SubgraphBasedExecutor(Executor):
             }
 
             # y
-            attrs = ["forward_times", "backward_times", "optimizer_times"]
-            subgraph_durations = tuple(
-                abs(getattr(subgraph[0], attr)[0] - getattr(subgraph[-1], attr)[1])
-                for attr in attrs
-            )
+            subgraph_duration = sum(node.duration + node.gap for node in subgraph)
             nodes_durations = list()
             for node in subgraph:
-                node_duration_label = tuple(
-                    abs(getattr(node, attr)[0] - getattr(node, attr)[1])
-                    for attr in attrs
+                node_duration_label = (
+                    node.duration, node.gap
                 )
                 nodes_durations.append(node_duration_label)
 
             label = {
                 "y_graph_id": graph.ID,
                 "y_nodes_durations": nodes_durations,
-                "y_subgraph_durations": subgraph_durations
+                "y_subgraph_durations": (subgraph_duration, )
             }
 
             return feature, label
