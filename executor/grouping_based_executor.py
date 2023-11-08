@@ -36,7 +36,6 @@ class GroupingBasedExecutor(Executor):
             subgraph_features = list()
             for node in subgraph:
                 node_feature = np.array(node.op.to_feature_array(
-                    op_type_encoding=dataset_params.get("op_type_encoding", "one-hot"), 
                     mode=dataset_params.get("mode", "complex")))
                 subgraph_features.append(node_feature)
             if len(subgraph_features) == 0:
@@ -59,10 +58,6 @@ class GroupingBasedExecutor(Executor):
                 for idx in neighbor_group_indices:
                     vector[idx] = 1
             adjacency_matrix.append(vector)
-
-        optimizer_node_feature = np.array(graph.graph_meta_feature())
-        feature_matrix.append(optimizer_node_feature)
-        adjacency_matrix.append(np.zeros(len(adjacency_matrix[0])))
 
         feature_matrix = pad_np_vectors(feature_matrix)
 

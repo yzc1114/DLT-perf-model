@@ -4,7 +4,7 @@ from typing import Dict, List
 import torch.cuda
 from sklearn import preprocessing
 
-from objects import GPUType, Environment, OptimizerType, ModelType
+from objects import Environment, OptimizerType, ModelType
 
 
 class TransferConfigMixin:
@@ -18,22 +18,16 @@ class DatasetConfigMixin:
         super().__init__(**kwargs)
         meta_configs = dataset_config_js.get("meta_configs", dict())
         self.dataset_environment_str: str = dataset_config_js.get("dataset_environment_str",
-                                                                  "RTX2080Ti")
+                                                                  "RTX2080Ti_CPU100")
         self.meta_dataset_train_environment_strs: [str] = meta_configs.get("meta_dataset_train_environment_strs",
-                                                                           ["RTX2080Ti"])
+                                                                           ["RTX2080Ti_CPU100"])
         self.meta_dataset_eval_environment_strs: [str] = meta_configs.get("meta_dataset_eval_environment_strs",
-                                                                          ["RTX2080Ti"])
-        self.dataset_gpu_type_str = self.dataset_environment_str
-        self.dataset_gpu_type: GPUType = GPUType[self.dataset_gpu_type_str]
-        self.meta_dataset_eval_gpu_types: List[GPUType] = [GPUType[s] for s in
-                                                           self.meta_dataset_eval_environment_strs]
-        self.meta_dataset_train_gpu_types: List[GPUType] = [GPUType[s] for s in
-                                                            self.meta_dataset_train_environment_strs]
-        self.dataset_environment: Environment = Environment(gpu_type=self.dataset_gpu_type)
-        self.meta_dataset_train_environments: List[Environment] = [Environment(gpu_type=t) for t in
-                                                                   self.meta_dataset_train_gpu_types]
-        self.meta_dataset_eval_environments: List[Environment] = [Environment(gpu_type=t) for t in
-                                                                  self.meta_dataset_eval_gpu_types]
+                                                                          ["RTX2080Ti_CPU100"])
+        self.dataset_environment: Environment = Environment.from_str(self.dataset_environment_str)
+        self.meta_dataset_train_environments: List[Environment] = [Environment.from_str(s) for s in
+                                                                   self.meta_dataset_train_environment_strs]
+        self.meta_dataset_eval_environments: List[Environment] = [Environment.from_str(s) for s in
+                                                                  self.meta_dataset_eval_environment_strs]
         self.dataset_normalization = dataset_config_js.get("dataset_normalization", "Standard")
         if self.dataset_normalization == "Standard":
             self.dataset_normalizer_cls = preprocessing.StandardScaler
@@ -122,20 +116,17 @@ class Config(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, TransferCo
 
 dataset_subgraph_node_sizes = [10, 20, 50]
 dataset_subgraph_grouping_counts = [10, 20, 30]
-dataset_op_encodings = ["one-hot"]
 
 train_configs = {
     ModelType.MLP: {
         "model": "MLP",
         "all_seed": 42,
-        "dataset_environment_str": "RTX2080Ti",
+        "dataset_environment_str": "RTX2080Ti_CPU100",
         "dataset_normalization": "Standard",
-        "dataset_op_encoding": dataset_op_encodings,
         "dataset_params": {
             "duration_summed": False,
-            "op_type_encoding": "one-hot"
         },
-        "dataset_dummy": True,
+        "dataset_dummy": False,
         "batch_size": 64,
         "learning_rate": 1e-3,
         "epochs": 100,
@@ -146,19 +137,17 @@ train_configs = {
             "meta_train_steps": 1000,
             "meta_task_per_step": 8,
             "meta_fast_adaption_step": 5,
-            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
-            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_train_environment_strs": ["RTX2080Ti_CPU100"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti_CPU100"],
         },
     },
     ModelType.MLPTestSubgraph: {
         "model": "MLPTestSubgraph",
         "all_seed": 42,
-        "dataset_environment_str": "RTX2080Ti",
+        "dataset_environment_str": "RTX2080Ti_CPU100",
         "dataset_normalization": "Standard",
-        "dataset_op_encoding": dataset_op_encodings,
         "dataset_params": {
             "duration_summed": False,
-            "op_type_encoding": "one-hot"
         },
         "dataset_dummy": True,
         "batch_size": 64,
@@ -171,20 +160,18 @@ train_configs = {
             "meta_train_steps": 1000,
             "meta_task_per_step": 8,
             "meta_fast_adaption_step": 5,
-            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
-            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_train_environment_strs": ["RTX2080Ti_CPU100"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti_CPU100"],
         },
     },
     ModelType.PerfNet: {
         "model": "PerfNet",
-        "dataset_environment_str": "RTX2080Ti",
-        "meta_dataset_environment_strs": ["RTX2080Ti"],
+        "dataset_environment_str": "RTX2080Ti_CPU100",
+        "meta_dataset_environment_strs": ["RTX2080Ti_CPU100"],
         "dataset_normalization": "Standard",
-        "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
             "duration_summed": False,
-            "op_type_encoding": "one-hot"
         },
         "dataset_dummy": True,
         "batch_size": 64,
@@ -197,20 +184,18 @@ train_configs = {
             "meta_train_steps": 1000,
             "meta_task_per_step": 8,
             "meta_fast_adaption_step": 5,
-            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
-            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_train_environment_strs": ["RTX2080Ti_CPU100"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti_CPU100"],
         },
     },
     ModelType.GBDT: {
         "model": "PerfNet",
-        "dataset_environment_str": "RTX2080Ti",
-        "meta_dataset_environment_strs": ["RTX2080Ti"],
+        "dataset_environment_str": "RTX2080Ti_CPU100",
+        "meta_dataset_environment_strs": ["RTX2080Ti_CPU100"],
         "dataset_normalization": "Standard",
-        "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
             "duration_summed": True,
-            "op_type_encoding": "one-hot"
         },
         "dataset_dummy": True,
         "batch_size": 64,
@@ -223,21 +208,19 @@ train_configs = {
             "meta_train_steps": 1000,
             "meta_task_per_step": 8,
             "meta_fast_adaption_step": 5,
-            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
-            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_train_environment_strs": ["RTX2080Ti_CPU100"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti_CPU100"],
         },
     },
     ModelType.LSTM: {
         "model": "LSTM",
-        "dataset_environment_str": "RTX2080Ti",
-        "meta_dataset_environment_strs": ["RTX2080Ti"],
+        "dataset_environment_str": "RTX2080Ti_CPU100",
+        "meta_dataset_environment_strs": ["RTX2080Ti_CPU100"],
         "dataset_normalization": "Standard",
-        "dataset_op_encoding": dataset_op_encodings,
         "dataset_subgraph_node_size": dataset_subgraph_node_sizes,
         "all_seed": 42,
         "dataset_params": {
             "duration_summed": False,
-            "op_type_encoding": "one-hot"
         },
         "model_params": {
             "num_layers": 5,
@@ -254,21 +237,19 @@ train_configs = {
             "meta_train_steps": 1000,
             "meta_task_per_step": 8,
             "meta_fast_adaption_step": 5,
-            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
-            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_train_environment_strs": ["RTX2080Ti_CPU100"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti_CPU100"],
         },
     },
     ModelType.GRU: {
         "model": "GRU",
-        "dataset_environment_str": "RTX2080Ti",
-        "meta_dataset_environment_strs": ["RTX2080Ti"],
+        "dataset_environment_str": "RTX2080Ti_CPU100",
+        "meta_dataset_environment_strs": ["RTX2080Ti_CPU100"],
         "dataset_normalization": "Standard",
-        "dataset_op_encoding": dataset_op_encodings,
         "dataset_subgraph_node_size": dataset_subgraph_node_sizes,
         "all_seed": 42,
         "dataset_params": {
             "duration_summed": False,
-            "op_type_encoding": "one-hot"
         },
         "model_params": {
             "num_layers": 5,
@@ -285,20 +266,18 @@ train_configs = {
             "meta_train_steps": 1000,
             "meta_task_per_step": 8,
             "meta_fast_adaption_step": 5,
-            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
-            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_train_environment_strs": ["RTX2080Ti_CPU100"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti_CPU100"],
         },
     },
     ModelType.MLPTestGrouping: {
         "model": "MLPTestGrouping",
         "all_seed": 42,
-        "dataset_environment_str": "RTX2080Ti",
+        "dataset_environment_str": "RTX2080Ti_CPU100",
         "dataset_normalization": "Standard",
         "dataset_subgraph_grouping_count": dataset_subgraph_grouping_counts,
-        "dataset_op_encoding": dataset_op_encodings,
         "dataset_params": {
             "duration_summed": False,
-            "op_type_encoding": "one-hot"
         },
         "dataset_dummy": True,
         "batch_size": 64,
@@ -310,20 +289,18 @@ train_configs = {
             "meta_learning_rate": 0.001,
             "meta_train_steps": 1000,
             "meta_fast_adaption_step": 5,
-            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
-            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_train_environment_strs": ["RTX2080Ti_CPU100"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti_CPU100"],
         },
     },
     ModelType.GCNGrouping: {
         "model": "GCNGrouping",
-        "dataset_environment_str": "RTX2080Ti",
+        "dataset_environment_str": "RTX2080Ti_CPU100",
         "dataset_normalization": "Standard",
         "dataset_subgraph_grouping_count": dataset_subgraph_grouping_counts,
-        "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
             "duration_summed": False,
-            "op_type_encoding": "one-hot"
         },
         "dataset_dummy": True,
         "batch_size": 64,
@@ -335,20 +312,18 @@ train_configs = {
             "meta_learning_rate": 0.001,
             "meta_train_steps": 1000,
             "meta_fast_adaption_step": 5,
-            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
-            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_train_environment_strs": ["RTX2080Ti_CPU100"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti_CPU100"],
         },
     },
     ModelType.GCNSubgraph: {
         "model": "GCNGrouping",
-        "dataset_environment_str": "RTX2080Ti",
+        "dataset_environment_str": "RTX2080Ti_CPU100",
         "dataset_normalization": "Standard",
         "dataset_subgraph_node_size": dataset_subgraph_node_sizes,
-        "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
             "duration_summed": False,
-            "op_type_encoding": "one-hot"
         },
         "dataset_dummy": True,
         "batch_size": 64,
@@ -361,20 +336,18 @@ train_configs = {
             "meta_train_steps": 1000,
             "meta_task_per_step": 8,
             "meta_fast_adaption_step": 5,
-            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
-            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_train_environment_strs": ["RTX2080Ti_CPU100"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti_CPU100"],
         },
     },
     ModelType.Transformer: {
         "model": "Transformer",
-        "dataset_environment_str": "RTX2080Ti",
+        "dataset_environment_str": "RTX2080Ti_CPU100",
         "dataset_normalization": "Standard",
         "dataset_subgraph_node_size": dataset_subgraph_node_sizes,
-        "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
             "duration_summed": False,
-            "op_type_encoding": "one-hot"
         },
         "model_params": {
             "nlayers": 6,
@@ -392,8 +365,8 @@ train_configs = {
             "meta_train_steps": 1000,
             "meta_task_per_step": 8,
             "meta_fast_adaption_step": 5,
-            "meta_dataset_train_environment_strs": ["RTX2080Ti"],
-            "meta_dataset_eval_environment_strs": ["RTX2080Ti"],
+            "meta_dataset_train_environment_strs": ["RTX2080Ti_CPU100"],
+            "meta_dataset_eval_environment_strs": ["RTX2080Ti_CPU100"],
         },
     },
 }
@@ -401,14 +374,12 @@ train_configs = {
 transfer_configs = {
     ModelType.Transformer: {
         "model": "Transformer",
-        "dataset_environment_str": "RTX2080Ti",
+        "dataset_environment_str": "RTX2080Ti_CPU100",
         "dataset_normalization": "Standard",
         "dataset_subgraph_node_size": dataset_subgraph_node_sizes,
-        "dataset_op_encoding": dataset_op_encodings,
         "all_seed": 42,
         "dataset_params": {
             "duration_summed": False,
-            "op_type_encoding": "one-hot"
         },
         "transfer_params": {
             "freeze_layers": 3,

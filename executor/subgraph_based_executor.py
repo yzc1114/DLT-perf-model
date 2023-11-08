@@ -40,9 +40,7 @@ class SubgraphBasedExecutor(Executor):
             feature_matrix = list()
             for node in nodes:
                 feature = node.op.to_feature_array(
-                    op_type_encoding=dataset_params.get("op_type_encoding", "one-hot"),
                     mode=dataset_params.get("mode", "complex"))
-                feature = np.concatenate([feature, graph.graph_meta_feature()])
                 feature = np.array(feature)
                 feature_matrix.append(feature)
 
@@ -296,12 +294,12 @@ class MLPTest_SubgraphModel(MModule):
             = x_node_feature_count, x_node_feature_size, y_nodes_duration_count, y_nodes_duration_size
         self.flatten = torch.nn.Flatten()
         self.linear1 = torch.nn.Linear(in_features=self.x_node_feature_count * self.x_node_feature_size,
-                                       out_features=256)
-        self.relu1 = torch.nn.ReLU()
-        self.linear2 = torch.nn.Linear(in_features=256,
                                        out_features=512)
+        self.relu1 = torch.nn.ReLU()
+        self.linear2 = torch.nn.Linear(in_features=512,
+                                       out_features=256)
         self.relu2 = torch.nn.ReLU()
-        self.output = torch.nn.Linear(512, self.y_nodes_duration_count * self.y_nodes_duration_size)
+        self.output = torch.nn.Linear(256, self.y_nodes_duration_count * self.y_nodes_duration_size)
         self.loss_fn = MSELoss()
 
     def forward(self, X):
@@ -494,7 +492,7 @@ class GRUSubgraphBasedExecutor(SubgraphBasedExecutor):
         final_params = self.default_model_params()
         for k, v in final_params.items():
             final_params[k] = model_params.get(k, v)
-        return LSTMModel(
+        return GRUModel(
             feature_size=x_node_feature_size,
             nodes_durations_len=y_nodes_durations_len,
             **final_params

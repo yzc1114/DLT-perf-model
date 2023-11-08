@@ -33,17 +33,12 @@ class OPBasedExecutor(Executor):
 
     @staticmethod
     def node_features(g,
-                      op_type_encoding="frequency",
                       mode="complex",
-                      encode_hyper_to_node: bool = True,
                       duration_summed: bool = False) -> Tuple[
         List[Dict], List[Dict]]:
         X, Y = list(), list()
-        optimizer_feature = g.optimizer_type.encode()
         for i, node in enumerate(g.nodes):
-            x_op_feature = node.op.to_feature_array(op_type_encoding, mode)
-            if encode_hyper_to_node:
-                x_op_feature = np.append(x_op_feature, optimizer_feature)
+            x_op_feature = node.op.to_feature_array(mode)
             x = {
                 "x_op_feature": x_op_feature
             }

@@ -23,25 +23,33 @@ class ModelType(Enum):
 
 
 class Environment:
-    def __init__(self, gpu_type: 'GPUType', framework: str=None, cuda_version: str=None):
+    def __init__(self, gpu_type: 'GPUType', cpu: int):
         self.gpu_type: GPUType = gpu_type
+        self.cpu: int = cpu
         # self.framework: str = framework
         # self.cuda_version: str = cuda_version
 
+    @staticmethod
+    def from_str(environment_str: str) -> 'Environment':
+        strs = environment_str.split("_")
+        gpu_type = GPUType[strs[0]]
+        cpu = int(strs[1].split("CPU")[-1])
+        return Environment(gpu_type=gpu_type, cpu=cpu)
+
     def __str__(self):
         # return f"{self.gpu_type.name}_{self.framework}_{self.cuda_version}"
-        return f"{self.gpu_type.name}"
+        return f"{self.gpu_type.name}_CPU{self.cpu}"
 
     def __repr__(self):
         return self.__str__()
     
     def __hash__(self) -> int:
-        return self.gpu_type.__hash__()
+        return self.gpu_type.__hash__() + self.cpu.__hash__()
     
     def __eq__(self, __value: object) -> bool:
         if not isinstance(__value, Environment):
             return False
-        return __value.gpu_type == self.gpu_type
+        return __value.gpu_type == self.gpu_type and __value.cpu == self.cpu
 
     def __ne__(self, __value: object) -> bool:
         return not self.__eq__(__value)
