@@ -10,7 +10,8 @@ from objects import Environment, OptimizerType, ModelType
 class TransferConfigMixin:
     def __init__(self, transfer_config_js, **kwargs):
         super().__init__(**kwargs)
-        self.transfer_params: Dict | None = transfer_config_js.get("transfer_params", None)
+        self.transfer_params: Dict | None = transfer_config_js.get(
+            "transfer_params", None)
 
 
 class DatasetConfigMixin:
@@ -23,23 +24,30 @@ class DatasetConfigMixin:
                                                                            ["RTX2080Ti_CPU100"])
         self.meta_dataset_eval_environment_strs: [str] = meta_configs.get("meta_dataset_eval_environment_strs",
                                                                           ["RTX2080Ti_CPU100"])
-        self.dataset_environment: Environment = Environment.from_str(self.dataset_environment_str)
+        self.dataset_environment: Environment = Environment.from_str(
+            self.dataset_environment_str)
         self.meta_dataset_train_environments: List[Environment] = [Environment.from_str(s) for s in
                                                                    self.meta_dataset_train_environment_strs]
         self.meta_dataset_eval_environments: List[Environment] = [Environment.from_str(s) for s in
                                                                   self.meta_dataset_eval_environment_strs]
-        self.dataset_normalization = dataset_config_js.get("dataset_normalization", "Standard")
+        self.dataset_normalization = dataset_config_js.get(
+            "dataset_normalization", "Standard")
         if self.dataset_normalization == "Standard":
             self.dataset_normalizer_cls = preprocessing.StandardScaler
         elif self.dataset_normalization == "MinMax":
             self.dataset_normalizer_cls = preprocessing.MinMaxScaler
         else:
-            raise ValueError(f"Invalid dataset_normalization: {self.dataset_normalization}")
-        self.dataset_subgraph_node_size = dataset_config_js.get("dataset_subgraph_node_size", 10)
-        self.dataset_subgraph_step = dataset_config_js.get("dataset_subgraph_step", 5)
-        self.dataset_subgraph_grouping_count = dataset_config_js.get("dataset_subgraph_grouping_count", 10)
+            raise ValueError(
+                f"Invalid dataset_normalization: {self.dataset_normalization}")
+        self.dataset_subgraph_node_size = dataset_config_js.get(
+            "dataset_subgraph_node_size", 10)
+        self.dataset_subgraph_step = dataset_config_js.get(
+            "dataset_subgraph_step", 5)
+        self.dataset_subgraph_grouping_count = dataset_config_js.get(
+            "dataset_subgraph_grouping_count", 10)
         self.dataset_params = dataset_config_js.get("dataset_params", dict())
-        self.dataset_train_proportion = dataset_config_js.get("train_ds_proportion", 0.7)
+        self.dataset_train_proportion = dataset_config_js.get(
+            "train_ds_proportion", 0.7)
         self.dataset_dummy = dataset_config_js.get("dataset_dummy", False)
 
     def identifier(self) -> str:
@@ -76,7 +84,7 @@ class Config(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, TransferCo
     @staticmethod
     def from_dict(d):
         return Config(d)
-    
+
     def to_dict(self):
         return self.raw_config
 
@@ -97,21 +105,25 @@ class Config(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, TransferCo
         self.num_train_epochs = train_config_js.get("epochs", 50)
         self.batch_size = train_config_js.get("batch_size", 64)
         self.logging_steps = train_config_js.get("logging_steps", 100)
-        self.evaluation_strategy = train_config_js.get("evaluation_strategy", "epoch")
         self.eval_steps = train_config_js.get("eval_steps", 100)
-        self.load_best_model_at_end = train_config_js.get("load_best_model_at_end", True)
+        self.load_best_model_at_end = train_config_js.get(
+            "load_best_model_at_end", True)
         # self.save_strategy = train_config_js.get("save_strategy", "epoch")
         self.optimizer_cls_str = train_config_js.get("optimizer", "Adam")
-        self.optimizer_cls = OptimizerType[train_config_js.get("optimizer", "Adam")].value
+        self.optimizer_cls = OptimizerType[train_config_js.get(
+            "optimizer", "Adam")].value
         self.learning_rate = train_config_js.get("learning_rate", 1e-3)
         meta_configs = train_config_js.get("meta_configs", 1e-3)
         self.meta_base_learning_rate = meta_configs.get("learning_rate", 5e-4)
         self.meta_train_steps = meta_configs.get("meta_train_steps", 1000)
         self.meta_task_per_step = meta_configs.get("meta_task_per_step", 8)
-        self.meta_fast_adaption_step = meta_configs.get("meta_fast_adaption_step", 5)
-        self.meta_adaption_batch_size = meta_configs.get("meta_adaption_batch_size", 128)
+        self.meta_fast_adaption_step = meta_configs.get(
+            "meta_fast_adaption_step", 5)
+        self.meta_adaption_batch_size = meta_configs.get(
+            "meta_adaption_batch_size", 128)
         self.meta_shots = meta_configs.get("meta_shots", 16)
-        self.meta_learner_learning_rate = meta_configs.get("meta_learning_rate", 1e-3)
+        self.meta_learner_learning_rate = meta_configs.get(
+            "meta_learning_rate", 1e-3)
 
 
 dataset_subgraph_node_sizes = [10, 20, 50]
@@ -128,6 +140,7 @@ train_configs = {
         },
         "dataset_dummy": False,
         "batch_size": 64,
+        "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
         "optimizer": "Adam",
@@ -151,6 +164,7 @@ train_configs = {
         },
         "dataset_dummy": True,
         "batch_size": 64,
+        "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
         "optimizer": "Adam",
@@ -175,6 +189,7 @@ train_configs = {
         },
         "dataset_dummy": True,
         "batch_size": 64,
+        "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
         "optimizer": "Adam",
@@ -199,6 +214,7 @@ train_configs = {
         },
         "dataset_dummy": True,
         "batch_size": 64,
+        "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
         "optimizer": "Adam",
@@ -228,6 +244,7 @@ train_configs = {
         },
         "dataset_dummy": True,
         "batch_size": 64,
+        "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
         "optimizer": "Adam",
@@ -257,6 +274,7 @@ train_configs = {
         },
         "dataset_dummy": True,
         "batch_size": 64,
+        "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
         "optimizer": "Adam",
@@ -281,6 +299,7 @@ train_configs = {
         },
         "dataset_dummy": True,
         "batch_size": 64,
+        "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
         "optimizer": "Adam",
@@ -304,6 +323,7 @@ train_configs = {
         },
         "dataset_dummy": True,
         "batch_size": 64,
+        "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
         "optimizer": "Adam",
@@ -327,6 +347,7 @@ train_configs = {
         },
         "dataset_dummy": True,
         "batch_size": 64,
+        "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
         "optimizer": "Adam",
@@ -356,6 +377,7 @@ train_configs = {
         },
         "dataset_dummy": True,
         "batch_size": 64,
+        "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
         "optimizer": "Adam",
@@ -387,6 +409,7 @@ transfer_configs = {
         },
         "dataset_dummy": True,
         "batch_size": 64,
+        "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
         "optimizer": "Adam",
