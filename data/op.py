@@ -4,6 +4,8 @@ from typing import Tuple, Optional, Union, List, Dict
 
 import numpy as np
 
+from data.util import get_op_frequency
+
 
 class OperatorMode(Enum):
     Forward = 0
@@ -20,9 +22,9 @@ class Operator:
     def __init__(self,
                  operator_type_id: int,
                  operator_mode: OperatorMode,
-                 batch_size: int=0,
-                 FLOPS: int=0,
-                 bytes: int=0,
+                 batch_size: int = 0,
+                 FLOPS: int = 0,
+                 bytes: int = 0,
                  hyper_parameters: Optional[Tuple[Union[float, int]]] = None
                  ):
         self.operator_type_id: int = operator_type_id
@@ -36,18 +38,29 @@ class Operator:
     @staticmethod
     def dummy_op():
         return Operator(0, OperatorMode.Forward)
-    
+
     @lru_cache(maxsize=None)
     @staticmethod
     def encode_op_type_id(i: int) -> List:
         l = [0] * 238
-        l[i-1] = 1
+        l[i - 1] = 1
         return l
+
+    @lru_cache(maxsize=None)
+    @staticmethod
+    def encode_op_type_id_static(i: int) -> List:
+        return [i]
+
+    @lru_cache(maxsize=None)
+    @staticmethod
+    def encode_op_type_id_frequency(i: int) -> List:
+        op_frequency = get_op_frequency()
+        return [op_frequency[i]]
 
     def to_feature_array(self, mode):
         if mode == "complex":
             complex_feature_vector = [
-                *Operator.encode_op_type_id(self.operator_type_id),
+                *Operator.encode_op_type_id_static(self.operator_type_id),
                 *self.operator_mode.encode(),
                 self.batch_size,
                 self.FLOPS,
@@ -58,7 +71,7 @@ class Operator:
             return np.array(complex_feature_vector)
         elif mode == "simple":
             simple_feature_vector = [
-                *self.encode_op_type_id(self.operator_type_id),
+                *self.encode_op_type_id_static(self.operator_type_id),
                 *self.operator_mode.encode(),
                 self.batch_size,
             ]
