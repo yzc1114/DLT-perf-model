@@ -24,7 +24,6 @@ from .gcn import GCNLayer
 class GroupingBasedExecutor(Executor):
     def __init__(self, conf: Config | None = None):
         super().__init__(conf)
-        self.scalers: Tuple | None = None
 
     @staticmethod
     def full_graph_feature(graph: Graph, subgraph_count: int = 10, dataset_params: Dict = {}) -> Tuple[
@@ -133,12 +132,12 @@ class GroupingBasedExecutor(Executor):
 
         y_scaler = scaler_cls()
         y_scaler.fit(y_array)
-        return graph_feature_scaler, y_scaler
+        return [graph_feature_scaler, y_scaler]
 
     def _preprocess_dataset(self, ds: MDataset) -> MDataset:
         y_array = list()
 
-        graph_feature_scaler, y_scaler = self._get_scalers()
+        graph_feature_scaler, y_scaler = self.scalers
         graph_feature_arrays = list()
         for data in ds:
             feature, label = data
@@ -177,7 +176,7 @@ class GroupingBasedExecutor(Executor):
         batches_len = len(input_batches)
 
         def compute_graph_duration(_logits):
-            _, y_scaler = self._get_scalers()
+            _, y_scaler = self.scalers
             transformed: np.ndarray = y_scaler.inverse_transform(_logits)
             duration_dim = (0, 1)
             durations = transformed[:, duration_dim[0]:duration_dim[1]].sum(axis=1)

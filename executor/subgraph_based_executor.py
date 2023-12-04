@@ -28,7 +28,6 @@ from .transformer import TransformerModel
 class SubgraphBasedExecutor(Executor):
     def __init__(self, conf: Config | None = None):
         super().__init__(conf)
-        self.scalers: Tuple | None = None
 
     @staticmethod
     def subgraph_features(graph: Graph, subgraph_node_size: int = 10, step: int=5, dataset_params: Dict={}) -> \
@@ -161,10 +160,10 @@ class SubgraphBasedExecutor(Executor):
         x_subgraph_feature_array = np.array(x_subgraph_feature_array)
         y_nodes_durations_array = np.array(y_nodes_durations_array)
         y_subgraph_durations_array = np.array(y_subgraph_durations_array)
-        return x_subgraph_feature_array, y_nodes_durations_array, y_subgraph_durations_array
+        return [x_subgraph_feature_array, y_nodes_durations_array, y_subgraph_durations_array]
 
     def _preprocess_dataset(self, ds: MDataset) -> MDataset:
-        x_subgraph_feature_scaler, y_nodes_durations_scaler, y_subgraph_durations_scaler = self._get_scalers(ds)
+        x_subgraph_feature_scaler, y_nodes_durations_scaler, y_subgraph_durations_scaler = self.scalers
 
         processed_features = list()
         processed_labels = list()
@@ -210,11 +209,11 @@ class SubgraphBasedExecutor(Executor):
 
 
         def compute_graph_nodes_durations(outputs_, node_ids_str_):
-            if self.train_mode == "single":
-                raw_ds = self.train_ds
-            elif self.train_mode == "meta":
-                raw_ds = self.meta_train_dss[env]
-            x_subgraph_feature_scaler, y_nodes_durations_scaler, y_subgraph_durations_scaler = self._get_scalers(raw_ds)
+            # if self.train_mode == "single":
+            #     raw_ds = self.train_ds
+            # elif self.train_mode == "meta":
+            #     raw_ds = self.meta_train_dss[env]
+            x_subgraph_feature_scaler, y_nodes_durations_scaler, y_subgraph_durations_scaler = self.scalers
             node_to_durations = defaultdict(list)
             for i, output_ in enumerate(outputs_):
                 node_ids = node_ids_str_[i]

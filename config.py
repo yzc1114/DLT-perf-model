@@ -103,7 +103,7 @@ class Config(DatasetConfigMixin, ModelConfigMixin, DeviceConfigMixin, TransferCo
         # training
         self.all_seed = train_config_js.get("all_seed", 42)
         self.num_train_epochs = train_config_js.get("epochs", 50)
-        self.batch_size = train_config_js.get("batch_size", 64)
+        self.batch_size = train_config_js.get("batch_size", 16)
         self.logging_steps = train_config_js.get("logging_steps", 100)
         self.eval_steps = train_config_js.get("eval_steps", 100)
         self.load_best_model_at_end = train_config_js.get(
@@ -134,13 +134,13 @@ train_configs = {
         "model": "MLP",
         "all_seed": 42,
         # "dataset_environment_str": "RTX2080Ti_CPU100",
-        "dataset_environment_str": "TEST_CPU100",
-        "dataset_normalization": "Standard",
+        "dataset_environment_str": "T4_CPU100",
+        "dataset_normalization": "MinMax",
         "dataset_params": {
             "duration_summed": False,
         },
         "dataset_dummy": False,
-        "batch_size": 64,
+        "batch_size": 16,
         "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
@@ -153,20 +153,20 @@ train_configs = {
             "meta_fast_adaption_step": 5,
             # "meta_dataset_train_environment_strs": ["RTX2080Ti_CPU100"],
             # "meta_dataset_eval_environment_strs": ["RTX2080Ti_CPU100"],
-            "meta_dataset_train_environment_strs": ["TEST_CPU100"],
-            "meta_dataset_eval_environment_strs": ["TEST_CPU100"],
+            "meta_dataset_train_environment_strs": ["T4_CPU100"],
+            "meta_dataset_eval_environment_strs": ["T4_CPU100"],
         },
     },
     ModelType.MLPTestSubgraph: {
         "model": "MLPTestSubgraph",
         "all_seed": 42,
-        "dataset_environment_str": "RTX2080Ti_CPU100",
-        "dataset_normalization": "Standard",
+        "dataset_environment_str": "T4_CPU100",
+        "dataset_normalization": "MinMax",
         "dataset_params": {
             "duration_summed": False,
         },
-        "dataset_dummy": True,
-        "batch_size": 64,
+        "dataset_dummy": False,
+        "batch_size": 16,
         "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
@@ -177,8 +177,8 @@ train_configs = {
             "meta_train_steps": 1000,
             "meta_task_per_step": 8,
             "meta_fast_adaption_step": 5,
-            "meta_dataset_train_environment_strs": ["RTX2080Ti_CPU100"],
-            "meta_dataset_eval_environment_strs": ["RTX2080Ti_CPU100"],
+            "meta_dataset_train_environment_strs": ["T4_CPU100"],
+            "meta_dataset_eval_environment_strs": ["T4_CPU100"],
         },
     },
     ModelType.PerfNet: {
@@ -191,7 +191,7 @@ train_configs = {
             "duration_summed": False,
         },
         "dataset_dummy": True,
-        "batch_size": 64,
+        "batch_size": 16,
         "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
@@ -216,7 +216,7 @@ train_configs = {
             "duration_summed": True,
         },
         "dataset_dummy": True,
-        "batch_size": 64,
+        "batch_size": 16,
         "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
@@ -246,7 +246,7 @@ train_configs = {
             "bidirectional": True
         },
         "dataset_dummy": True,
-        "batch_size": 64,
+        "batch_size": 16,
         "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
@@ -276,7 +276,7 @@ train_configs = {
             "bidirectional": True
         },
         "dataset_dummy": True,
-        "batch_size": 64,
+        "batch_size": 16,
         "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
@@ -301,7 +301,7 @@ train_configs = {
             "duration_summed": False,
         },
         "dataset_dummy": True,
-        "batch_size": 64,
+        "batch_size": 16,
         "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
@@ -325,7 +325,7 @@ train_configs = {
             "duration_summed": False,
         },
         "dataset_dummy": True,
-        "batch_size": 64,
+        "batch_size": 16,
         "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
@@ -349,7 +349,7 @@ train_configs = {
             "duration_summed": False,
         },
         "dataset_dummy": True,
-        "batch_size": 64,
+        "batch_size": 16,
         "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
@@ -379,7 +379,7 @@ train_configs = {
             "dropout": 0.0
         },
         "dataset_dummy": True,
-        "batch_size": 64,
+        "batch_size": 16,
         "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,
@@ -411,7 +411,7 @@ transfer_configs = {
             "reinit_proj": True
         },
         "dataset_dummy": True,
-        "batch_size": 64,
+        "batch_size": 16,
         "eval_steps": 100,
         "learning_rate": 1e-3,
         "epochs": 100,

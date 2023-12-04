@@ -33,6 +33,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    delete_unvalid_data('T4_CPU100')
+    # delete_unvalid_data('T4_CPU100')
     delete_unvalid_data('RTX2080Ti_CPU100')
-    delete_unvalid_data('TEST_CPU100')
+    # delete_unvalid_data('TEST_CPU100')

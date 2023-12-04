@@ -79,8 +79,7 @@ class OPBasedExecutor(Executor):
         pass
 
     @lru_cache(maxsize=None)
-    def _get_scalers(self):
-        train_ds = self.train_ds
+    def _get_scalers(self, train_ds):
         scaler_cls = self.conf.dataset_normalizer_cls
         op_feature_array = list()
         y_array = list()
@@ -98,7 +97,7 @@ class OPBasedExecutor(Executor):
 
         y_scaler = scaler_cls()
         y_scaler.fit(y_array)
-        return op_feature_scaler, y_scaler
+        return [op_feature_scaler, y_scaler]
 
     def _preprocess_dataset(self, ds: MDataset) -> MDataset:
         op_feature_array = list()
@@ -112,7 +111,7 @@ class OPBasedExecutor(Executor):
         op_feature_array = np.array(op_feature_array).astype(np.float32)
         y_array = np.array(y_array).astype(np.float32)
 
-        op_feature_scaler, y_scaler = self._get_scalers()
+        op_feature_scaler, y_scaler = self.scalers
         op_feature_array = op_feature_scaler.transform(op_feature_array)
         y_array = y_scaler.transform(y_array)
 
@@ -140,7 +139,7 @@ class OPBasedExecutor(Executor):
         batches_len = len(input_batches)
 
         def compute_op_durations(_logits):
-            _, y_scaler = self._get_scalers()
+            _, y_scaler = self.scalers
             transformed: np.ndarray = y_scaler.inverse_transform(_logits)
             duration_dim = (0, 3)
             durations = transformed[:, duration_dim[0]:duration_dim[1]].sum(axis=1)
@@ -394,7 +393,7 @@ class GBDT_OPBasedExecutor(OPBasedExecutor):
 
         Y_dur = np.array(Y_dur).reshape(-1, 1)
         Y_pred = np.array(Y_pred).reshape(-1, 1)
-        _, y_scaler = self._get_scalers()
+        _, y_scaler = self.scalers
         transformed_Y: np.ndarray = y_scaler.inverse_transform(Y_dur).reshape(-1)
         transformed_Y_pred: np.ndarray = y_scaler.inverse_transform(Y_pred).reshape(-1)
 

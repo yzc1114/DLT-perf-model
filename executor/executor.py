@@ -11,9 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import learn2learn as l2l
 import torch.optim
-from torch.nn import Module
 from learn2learn.data import InfiniteIterator
-from torch.optim.lr_scheduler import LRScheduler, ConstantLR
 from torch.utils.data import DataLoader, RandomSampler
 from tqdm import tqdm
 
@@ -40,16 +38,16 @@ class Executor(ABC):
                                        train_or_eval="eval",
                                        use_dummy=self.conf.dataset_dummy)
         self.set_seed()
-
-        self.train_ds: MDataset | None = None
-        self.eval_ds: MDataset | None = None
         self.preprocessed_train_ds: MDataset | None = None
         self.preprocessed_eval_ds: MDataset | None = None
 
-        self.train_ds = self._init_dataset(self.train_graphs)
-        self.eval_ds = self._init_dataset(self.eval_graphs)
-        self.preprocessed_train_ds = self._init_preprocessed_dataset(self.train_ds)
-        self.preprocessed_eval_ds = self._init_preprocessed_dataset(self.eval_ds)
+        train_ds = self._init_dataset(self.train_graphs)
+        eval_ds = self._init_dataset(self.eval_graphs)
+        # todo 训练姐和测试机应该分别归一化
+        self.scalers = self._get_scalers(train_ds)
+        self.preprocessed_train_ds = self._init_preprocessed_dataset(train_ds)
+        self.preprocessed_eval_ds = self._init_preprocessed_dataset(eval_ds)
+
 
         self.train_records: Dict = dict()
 
@@ -82,7 +80,9 @@ class Executor(ABC):
     @abstractmethod
     def default_model_params() -> Dict[str, Any]:
         pass
-
+    @abstractmethod
+    def _get_scalers(self, ds : MDataset) -> Dict[str, Any]:
+        pass
     @staticmethod
     @abstractmethod
     def grid_search_model_params() -> Dict[str, List]:

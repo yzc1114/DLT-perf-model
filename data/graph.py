@@ -125,8 +125,8 @@ class Graph:
             op_hyper_parameters = list(eval(d["params"][i]))
             flops = int(d["flops"][i])
             bytes = int(d["bytes"][i])
-            kduration = int(d["kduration"][i])
-            space = int(d["space"][i])
+            kduration = int(d["kduration"][i])/1000
+            space = int(d["space"][i])/1000
             batch_size = int(d["batch"][i])
             op = Operator(operator_type_id=operator_type_id,
                           operator_mode=operator_mode,

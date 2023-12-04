@@ -64,6 +64,7 @@ class GPUType(Enum):
     RTX4090 = 2
     P40 = 3
     K80 = 4
+    TEST = 100
 
 
 class OptimizerType(Enum):

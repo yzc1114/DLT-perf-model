@@ -40,6 +40,9 @@ def load_graphs(environment: Environment, train_or_eval: str = "train", use_dumm
             if not filename.endswith(".csv"):
                 continue
             csv = pds.read_csv(str(data_dir/filename))
+            # 删除optimizer的数据
+            csv = csv[csv["seq"] != "-1"]
+            print(f"Loading {filename}, {len(csv)} rows")
             graph = Graph.from_data(environment, filename=filename, df=csv)
             _graphs.append(graph)
         return _graphs
