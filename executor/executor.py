@@ -44,9 +44,12 @@ class Executor(ABC):
             self.eval_graphs = load_graphs(self.conf.dataset_environment,
                                            train_or_eval="eval",
                                            use_dummy=self.conf.dataset_dummy)
-            self.preprocessed_train_ds = load_dataset_pkl(self.conf.dataset_environment, self.executor_name, 'train')
-            self.preprocessed_eval_ds = load_dataset_pkl(self.conf.dataset_environment, self.executor_name, 'eval')
-            self.scalers = load_scalers_pkl(self.conf.dataset_environment, self.executor_name, 'train')
+            self.preprocessed_train_ds = load_dataset_pkl(self.conf.dataset_environment, self.executor_name, 'train',
+                                                          self.conf.dataset_normalization)
+            self.preprocessed_eval_ds = load_dataset_pkl(self.conf.dataset_environment, self.executor_name, 'eval',
+                                                         self.dataset_normalization)
+            self.scalers = load_scalers_pkl(self.conf.dataset_environment, self.executor_name, 'train',
+                                            self.conf.dataset_normalization)
             # self.eval_graphs = load_graphs_pkl(self.conf.dataset_environment, self.executor_name, 'eval')
             print('load dataset from file done')
             return
@@ -68,9 +71,12 @@ class Executor(ABC):
         self.preprocessed_eval_ds = self._init_preprocessed_dataset(eval_ds)
 
         # save
-        save_dataset_pkl(self.preprocessed_train_ds, self.conf.dataset_environment, self.executor_name, 'train')
-        save_dataset_pkl(self.preprocessed_eval_ds, self.conf.dataset_environment, self.executor_name, 'eval')
-        save_scalers_pkl(self.scalers, self.conf.dataset_environment, self.executor_name, 'train')
+        save_dataset_pkl(self.preprocessed_train_ds, self.conf.dataset_environment, self.executor_name, 'train',
+                         self.conf.dataset_normalization)
+        save_dataset_pkl(self.preprocessed_eval_ds, self.conf.dataset_environment, self.executor_name, 'eval',
+                         self.conf.dataset_normalization)
+        save_scalers_pkl(self.scalers, self.conf.dataset_environment, self.executor_name, 'train',
+                         self.conf.dataset_normalization)
         # save_graphs_pkl(self.eval_graphs, self.conf.dataset_environment, self.executor_name, 'eval')
 
     def _prepare_meta_dataset(self):
@@ -196,7 +202,7 @@ class Executor(ABC):
             for i, data in enumerate(tqdm(train_dl)):
                 optimizer.zero_grad()
                 features, labels = data
-                features['x_op_feature'] =features["x_op_feature"].to(device=self.conf.device)
+                features['x_op_feature'] = features["x_op_feature"].to(device=self.conf.device)
                 labels['y_node_durations'] = labels['y_node_durations'].to(device=self.conf.device)
                 outputs = model(features)
                 loss = model.compute_loss(outputs, labels)

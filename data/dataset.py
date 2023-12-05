@@ -49,6 +49,7 @@ def load_graphs(environment: Environment, train_or_eval: str = "train", use_dumm
             graph = Graph.from_data(environment, filename=filename, df=csv)
             _graphs.append(graph)
         return _graphs
+
     print(f"Loading graphs {train_or_eval}")
     graphs = _load_graphs()
     return graphs
@@ -62,8 +63,9 @@ def analyze_op_freq(graphs: List[Graph]):
     return op_freq
 
 
-def save_dataset_pkl(ds: MDataset, environment: Environment, executor: str, train_or_eval: str = "train"):
-    data_dir = pathlib.Path(pkl_path) / f"{environment}" / executor / train_or_eval
+def save_dataset_pkl(ds: MDataset, environment: Environment, executor: str, train_or_eval: str = "train",
+                     normalization: str = 'Standard'):
+    data_dir = pathlib.Path(pkl_path) / f"{environment}" / executor / train_or_eval / normalization
     if not os.path.exists(str(data_dir)):
         os.makedirs(str(data_dir))
     with open(str(data_dir / "features.pkl"), "wb") as f:
@@ -72,9 +74,10 @@ def save_dataset_pkl(ds: MDataset, environment: Environment, executor: str, trai
         pickle.dump(ds.labels, f)
 
 
-def load_dataset_pkl(environment: Environment, executor: str, train_or_eval: str = "train"):
-    print(f"Loading dataset {environment} {executor} {train_or_eval}")
-    data_dir = pathlib.Path(pkl_path) / f"{environment}" / executor / train_or_eval
+def load_dataset_pkl(environment: Environment, executor: str, train_or_eval: str = "train",
+                     normalization: str = 'Standard'):
+    print(f"Loading dataset {environment} {executor} {train_or_eval} {normalization}")
+    data_dir = pathlib.Path(pkl_path) / f"{environment}" / executor / train_or_eval / normalization
     with open(str(data_dir / "features.pkl"), "rb") as f:
         features = pickle.load(f)
     with open(str(data_dir / "labels.pkl"), "rb") as f:
@@ -82,22 +85,25 @@ def load_dataset_pkl(environment: Environment, executor: str, train_or_eval: str
     return MDataset(features, labels)
 
 
-def dateset_exists(environment: Environment, executor: str, train_or_eval: str = "train"):
-    data_dir = pathlib.Path(pkl_path) / f"{environment}" / executor / train_or_eval
+def dateset_exists(environment: Environment, executor: str, train_or_eval: str = "train",
+                   normalization: str = 'Standard'):
+    data_dir = pathlib.Path(pkl_path) / f"{environment}" / executor / train_or_eval / normalization
     return os.path.exists(str(data_dir / "features.pkl"))
 
 
-def save_scalers_pkl(scalers, environment: Environment, executor: str, train_or_eval: str = "train"):
-    data_dir = pathlib.Path(pkl_path) / f"{environment}" / executor / train_or_eval
+def save_scalers_pkl(scalers, environment: Environment, executor: str, train_or_eval: str = "train",
+                     normalization: str = 'Standard'):
+    data_dir = pathlib.Path(pkl_path) / f"{environment}" / executor / train_or_eval / normalization
     if not os.path.exists(str(data_dir)):
         os.makedirs(str(data_dir))
     with open(str(data_dir / "scalers.pkl"), "wb") as f:
         pickle.dump(scalers, f)
 
 
-def load_scalers_pkl(environment: Environment, executor: str, train_or_eval: str = "train"):
-    print(f"Loading scalers {environment} {executor} {train_or_eval}")
-    data_dir = pathlib.Path(pkl_path) / f"{environment}" / executor / train_or_eval
+def load_scalers_pkl(environment: Environment, executor: str, train_or_eval: str = "train",
+                     normalization: str = 'Standard'):
+    print(f"Loading scalers {environment} {executor} {train_or_eval}, {normalization}")
+    data_dir = pathlib.Path(pkl_path) / f"{environment}" / executor / train_or_eval / normalization
     with open(str(data_dir / "scalers.pkl"), "rb") as f:
         scalers = pickle.load(f)
     return scalers
