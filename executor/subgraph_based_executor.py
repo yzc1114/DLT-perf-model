@@ -31,8 +31,8 @@ class SubgraphBasedExecutor(Executor):
         self.executor_name = "SubgraphBasedExecutor"
 
     @staticmethod
-    def subgraph_features(graph: Graph, subgraph_node_size: int = 10, step: int=5, dataset_params: Dict={}) -> \
-    Tuple[List[Dict], List[Dict]]:
+    def subgraph_features(graph: Graph, subgraph_node_size: int = 10, step: int = 5, dataset_params: Dict = {}) -> \
+            Tuple[List[Dict], List[Dict]]:
         subgraphs, _ = graph.subgraphs(subgraph_node_size=subgraph_node_size, step=step)
         X, Y = list(), list()
 
@@ -79,7 +79,7 @@ class SubgraphBasedExecutor(Executor):
             label = {
                 "y_graph_id": graph.ID,
                 "y_nodes_durations": nodes_durations,
-                "y_subgraph_durations": (subgraph_duration, )
+                "y_subgraph_durations": (subgraph_duration,)
             }
 
             return feature, label
@@ -209,9 +209,15 @@ class SubgraphBasedExecutor(Executor):
         ds = MDataset(processed_features, processed_labels)
         return ds
 
+    def to_device(self, features, labels):
+        features['x_subgraph_feature'] = features['x_subgraph_feature'].to(self.device)
+        features['x_adj_matrix'] = features['x_adj_matrix'].to(self.device)
+        features['y_nodes_durations'] = features['y_nodes_durations'].to(self.device)
+        features['y_subgraph_durations'] = features['y_subgraph_durations'].to(self.device)
+        return features, labels
+
     def _evaluate(self, model, env: Environment, ds: MDataset) -> Dict[str, float]:
         input_batches, output_batches, eval_loss = self._dl_evaluate_pred(model, env, ds)
-
 
         def compute_graph_nodes_durations(outputs_, node_ids_str_):
             # if self.train_mode == "single":
@@ -230,7 +236,7 @@ class SubgraphBasedExecutor(Executor):
             node_to_duration = {k: np.average(v) for k, v in node_to_durations.items()}
             return node_to_duration
 
-        graph_id_to_node_to_duration = defaultdict(lambda :defaultdict(list))
+        graph_id_to_node_to_duration = defaultdict(lambda: defaultdict(list))
         for inputs, outputs in zip(input_batches, output_batches):
             outputs = nested_detach(outputs)
             outputs = outputs.cpu().numpy()
@@ -448,7 +454,7 @@ class GRUModel(MModule):
     def __init__(self, feature_size, nodes_durations_len, num_layers, bidirectional, **kwargs):
         super().__init__(**kwargs)
         self.gru = GRU(input_size=feature_size, hidden_size=feature_size, num_layers=num_layers, batch_first=True,
-                         bidirectional=bidirectional)
+                       bidirectional=bidirectional)
         num_directions = 2 if bidirectional else 1
         self.project = torch.nn.Linear(in_features=feature_size * num_directions, out_features=nodes_durations_len)
         self.loss_fn = MSELoss()

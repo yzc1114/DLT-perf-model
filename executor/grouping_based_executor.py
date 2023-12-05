@@ -160,16 +160,25 @@ class GroupingBasedExecutor(Executor):
             x_adjacency_matrix = np.array(feature["x_adjacency_matrix"]).astype(np.float32)
             processed_features.append({
                 "x_graph_id": feature["x_graph_id"],
-                "x_feature_matrix": torch.Tensor(graph_feature_arrays[i]).to(self.conf.device),
-                "x_adjacency_matrix": torch.Tensor(x_adjacency_matrix).to(self.conf.device)
+                # "x_feature_matrix": torch.Tensor(graph_feature_arrays[i]).to(self.conf.device),
+                # "x_adjacency_matrix": torch.Tensor(x_adjacency_matrix).to(self.conf.device)
+                "x_feature_matrix": torch.Tensor(graph_feature_arrays[i]),
+                "x_adjacency_matrix": torch.Tensor(x_adjacency_matrix)
             })
             processed_labels.append({
                 "y_graph_id": label["y_graph_id"],
-                "y_graph_duration": torch.Tensor(y_array[i]).to(self.conf.device),
+                # "y_graph_duration": torch.Tensor(y_array[i]).to(self.conf.device),
+                "y_graph_duration": torch.Tensor(y_array[i]),
             })
 
         ds = MDataset(processed_features, processed_labels)
         return ds
+
+    def to_device(self, features, labels):
+        features["x_feature_matrix"] = features["x_feature_matrix"].to(self.conf.device)
+        features["x_adjacency_matrix"] = features["x_adjacency_matrix"].to(self.conf.device)
+        labels["y_graph_duration"] = labels["y_graph_duration"].to(self.conf.device)
+        return features, labels
 
     def _evaluate(self, model, env: Environment, ds: MDataset) -> Dict[str, float]:
         input_batches, output_batches, eval_loss = self._dl_evaluate_pred(model, env, ds)
