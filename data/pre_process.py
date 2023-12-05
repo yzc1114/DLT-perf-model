@@ -16,23 +16,15 @@ def split_data(data_set: str):
     model_path = os.path.join(data_set_path, 'models')
     train_path = os.path.join(data_set_path, 'train')
     eval_path = os.path.join(data_set_path, 'eval')
-    test_path = os.path.join(data_set_path, 'test')
     if not os.path.exists(train_path):
         os.mkdir(train_path)
     if not os.path.exists(eval_path):
         os.mkdir(eval_path)
-    if not os.path.exists(test_path):
-        os.mkdir(test_path)
     with open(os.path.join(config_path, 'eval.txt'), 'r') as f:
         eval_models = f.readlines()
         for model in eval_models:
             model = model.rstrip('\n')
             os.system('mv ' + os.path.join(model_path, model) + '.*' + ' ' + eval_path)
-    with open(os.path.join(config_path, 'test.txt'), 'r') as f:
-        test_models = f.readlines()
-        for model in test_models:
-            model = model.rstrip('\n')
-            os.system('mv ' + os.path.join(model_path, model) + '.*' + ' ' + test_path)
     with open(os.path.join(config_path, 'train.txt'), 'r') as f:
         train_models = f.readlines()
         for model in train_models:
@@ -43,7 +35,7 @@ def split_data(data_set: str):
 
 def delete_unvalid_data(data_set: str):
     """
-    删除无效数据
+    删除无效数据,即space小于-1000
     """
     train_data = os.path.join(dataset_path, data_set, 'train')
     for file in os.listdir(train_data):

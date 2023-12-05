@@ -232,8 +232,9 @@ class Executor(ABC):
                         "step": curr_train_step,
                         "duration": train_dur
                     })
-                    self.save_model(save_path=save_path, model=model, curr_steps=curr_train_step,
-                                    curr_loss_value=loss_value)
+                    if curr_train_step % (self.conf.eval_steps*10) == 0:
+                        self.save_model(save_path=save_path, model=model, curr_steps=curr_train_step,
+                                        curr_loss_value=loss_value)
                     model.train()
         self.save_train_plot(save_path)
 
@@ -402,8 +403,7 @@ class Executor(ABC):
         eval_losses = list()
         for data in dl:
             features, labels = data
-            features['x_op_feature'] = features["x_op_feature"].to(device=self.conf.device)
-            labels['y_node_durations'] = labels['y_node_durations'].to(device=self.conf.device)
+            features, labels = self.to_device(features, labels)
             with torch.no_grad():
                 outputs = model(features)
             loss = model.compute_loss(outputs, labels)

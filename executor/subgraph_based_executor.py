@@ -210,10 +210,10 @@ class SubgraphBasedExecutor(Executor):
         return ds
 
     def to_device(self, features, labels):
-        features['x_subgraph_feature'] = features['x_subgraph_feature'].to(self.device)
-        features['x_adj_matrix'] = features['x_adj_matrix'].to(self.device)
-        features['y_nodes_durations'] = features['y_nodes_durations'].to(self.device)
-        features['y_subgraph_durations'] = features['y_subgraph_durations'].to(self.device)
+        features['x_subgraph_feature'] = features['x_subgraph_feature'].to(self.conf.device)
+        features['x_adj_matrix'] = features['x_adj_matrix'].to(self.conf.device)
+        labels['y_nodes_durations'] = labels['y_nodes_durations'].to(self.conf.device)
+        labels['y_subgraph_durations'] = labels['y_subgraph_durations'].to(self.conf.device)
         return features, labels
 
     def _evaluate(self, model, env: Environment, ds: MDataset) -> Dict[str, float]:

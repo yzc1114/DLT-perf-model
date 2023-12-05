@@ -112,14 +112,14 @@ def launch(models: List[ModelType], launch_lambda):
 
 train_models = [
     ModelType.MLP,
-    # ModelType.GBDT,
+    ModelType.GBDT,
+    ModelType.PerfNet,
+    ModelType.LSTM,
+    ModelType.Transformer,
+    ModelType.GRU,
     # ModelType.GCNSubgraph,
-    # ModelType.PerfNet,
-    # ModelType.Transformer,
     # ModelType.MLPTestSubgraph,
     # ModelType.MLPTestGrouping,
-    # ModelType.LSTM,
-    # ModelType.GRU,
     # ModelType.GCNGrouping
 ]
 
@@ -136,6 +136,7 @@ tasks = {
 }
 
 if __name__ == '__main__':
+
     if "single_train" in tasks:
         # launch single train
         launch(models=train_models,

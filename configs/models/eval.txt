@@ -10,3 +10,5 @@ mnasnet0_75
 regnet_x_400mf
 regnet_y_800mf
 deeplabv3_resnet5
+vgg16
+vgg16_bn

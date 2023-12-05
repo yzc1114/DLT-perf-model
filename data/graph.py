@@ -9,7 +9,7 @@ import pandas as pds
 
 from pandas import DataFrame
 from objects import GPUType
-from .op import Operator, OperatorMode
+from .op import Operator, OperatorMode, OperatorDtype
 from objects import Environment
 
 
@@ -87,6 +87,8 @@ class Graph:
             for i in range(num_nodes):
                 op_type = rand.choice([0, 1, 2, 3])
                 op_mode = rand.choice(operator_modes)
+                op_dtype = rand.choice([1,2,3])
+                h = rand.choice([4,8,16,32,64,128])
                 batch_size = rand.choice([32, 64, 128])
                 hyper_param_cnt = rand.randint(0, 10)
                 args = {
@@ -94,7 +96,7 @@ class Graph:
                     'batch_size': batch_size,
                     'hyper_parameters': tuple(rand.uniform(0, 1) for i in range(hyper_param_cnt))
                 }
-                op = Operator(op_type, op_mode, **args)
+                op = Operator(op_type, op_mode,op_dtype, h,  **args)
                 last_node = None if len(nodes) == 0 else nodes[-1]
 
                 duration, gap = rand.uniform(0, 1), rand.uniform(0, 1)
@@ -118,10 +120,16 @@ class Graph:
             2: OperatorMode.Backward,
             3: OperatorMode.Update
         }
+        operator_dtype_map = {
+            1: OperatorDtype.Float,
+            2: OperatorDtype.Half,
+            3: OperatorDtype.Double
+        }
         nodes = list()
         for i in range(total_op):
             operator_type_id = int(d["op"][i])
             operator_mode = OperatorMode(operator_modes_map[d["dir"][i]])
+            operator_dtype = OperatorDtype(operator_dtype_map[d["input_type"][i]])
             op_hyper_parameters = list(eval(d["params"][i]))
             # 某些算子的参数超过30个，这里只取前30个
             op_hyper_parameters = op_hyper_parameters[:30]
@@ -129,16 +137,23 @@ class Graph:
                 op_hyper_parameters.extend(
                     [0 for i in range(30 - len(op_hyper_parameters))])
 
+            # 修改参数为log来避免正则化
+            op_hyper_parameters = [math.log(i) + 1 if i != 0 else i for i in op_hyper_parameters]
             flops = int(d["flops"][i])
             bytes = int(d["bytes"][i])
             kduration = eval(format(int(d["kduration"][i]) / 1000, '.2f'))  # us
             space = eval(format(int(d["space"][i]) / 1000, '.2f'))  # us
+            if space < 0:
+                space = 0
             batch_size = int(d["batch"][i])
+            h = int(d["h"][i])
             op = Operator(operator_type_id=operator_type_id,
                           operator_mode=operator_mode,
+                          operator_dtype=operator_dtype,
                           FLOPS=flops,
                           bytes=bytes,
                           batch_size=batch_size,
+                          h=h,
                           hyper_parameters=op_hyper_parameters)
             last_node = None if len(nodes) == 0 else nodes[-1]
             current_node = GraphNode(i,

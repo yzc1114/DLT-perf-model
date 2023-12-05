@@ -116,7 +116,7 @@ class OPBasedExecutor(Executor):
 
         op_feature_scaler, y_scaler = self.scalers
         op_feature_array = op_feature_scaler.transform(op_feature_array)
-        # y_array = y_scaler.transform(y_array)
+        y_array = y_scaler.transform(y_array)
 
         processed_features = list()
         processed_labels = list()
@@ -145,13 +145,13 @@ class OPBasedExecutor(Executor):
         batches_len = len(input_batches)
 
         def compute_op_durations(_logits):
-            # _, y_scaler = self.scalers
-            # transformed: np.ndarray = y_scaler.inverse_transform(_logits)
-            # duration_dim = (0, 3)
-            # durations = transformed[:, duration_dim[0]:duration_dim[1]].sum(axis=1)
-            transformed = _logits
+            _, y_scaler = self.scalers
+            transformed: np.ndarray = y_scaler.inverse_transform(_logits)
             duration_dim = (0, 3)
             durations = transformed[:, duration_dim[0]:duration_dim[1]].sum(axis=1)
+            # transformed = _logits
+            # duration_dim = (0, 3)
+            # durations = transformed[:, duration_dim[0]:duration_dim[1]].sum(axis=1)
             return durations
 
         graph_id_to_duration_pred = defaultdict(int)
@@ -182,11 +182,11 @@ class MLPModel(MModule):
 
     def __init__(self, input_dimension, output_dimension, **kwargs):
         super().__init__(**kwargs)
-        self.input = torch.nn.Linear(input_dimension, 128)
+        self.input = torch.nn.Linear(input_dimension, 256)
         self.relu1 = ReLU()
-        self.dense1 = torch.nn.Linear(128, 64)
+        self.dense1 = torch.nn.Linear(256, 128)
         self.relu2 = ReLU()
-        self.dense2 = torch.nn.Linear(64, 32)
+        self.dense2 = torch.nn.Linear(128, 32)
         self.relu3 = ReLU()
         self.output = torch.nn.Linear(32, output_dimension)
         self.loss_fn = MSELoss()
