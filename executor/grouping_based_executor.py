@@ -24,7 +24,7 @@ from .gcn import GCNLayer
 class GroupingBasedExecutor(Executor):
     def __init__(self, conf: Config | None = None):
         super().__init__(conf)
-        self.name = "GroupingBasedExecutor"
+        self.executor_name = "GroupingBasedExecutor"
 
     @staticmethod
     def full_graph_feature(graph: Graph, subgraph_count: int = 10, dataset_params: Dict = {}) -> Tuple[

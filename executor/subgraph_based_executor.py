@@ -28,7 +28,7 @@ from .transformer import TransformerModel
 class SubgraphBasedExecutor(Executor):
     def __init__(self, conf: Config | None = None):
         super().__init__(conf)
-        self.name = "SubgraphBasedExecutor"
+        self.executor_name = "SubgraphBasedExecutor"
 
     @staticmethod
     def subgraph_features(graph: Graph, subgraph_node_size: int = 10, step: int=5, dataset_params: Dict={}) -> \

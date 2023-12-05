@@ -47,7 +47,7 @@ class Executor(ABC):
             self.preprocessed_train_ds = load_dataset_pkl(self.conf.dataset_environment, self.executor_name, 'train',
                                                           self.conf.dataset_normalization)
             self.preprocessed_eval_ds = load_dataset_pkl(self.conf.dataset_environment, self.executor_name, 'eval',
-                                                         self.dataset_normalization)
+                                                         self.conf.dataset_normalization)
             self.scalers = load_scalers_pkl(self.conf.dataset_environment, self.executor_name, 'train',
                                             self.conf.dataset_normalization)
             # self.eval_graphs = load_graphs_pkl(self.conf.dataset_environment, self.executor_name, 'eval')

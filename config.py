@@ -133,9 +133,9 @@ train_configs = {
     ModelType.MLP: {
         "model": "MLP",
         "all_seed": 42,
-        # "dataset_environment_str": "TEST_CPU100",
+        "dataset_environment_str": "TEST_CPU100",
         # "dataset_environment_str": "RTX2080Ti_CPU100",
-        "dataset_environment_str": "T4_CPU100",
+        # "dataset_environment_str": "T4_CPU100",
         "dataset_normalization": "Standard",
         "dataset_params": {
             "duration_summed": False,
@@ -152,10 +152,10 @@ train_configs = {
             "meta_train_steps": 1000,
             "meta_task_per_step": 8,
             "meta_fast_adaption_step": 5,
-            # "meta_dataset_train_environment_strs": ["TEST_CPU100"],
-            # "meta_dataset_eval_environment_strs": ["TEST_CPU100"],
-            "meta_dataset_train_environment_strs": ["T4_CPU100"],
-            "meta_dataset_eval_environment_strs": ["T4_CPU100"],
+            "meta_dataset_train_environment_strs": ["TEST_CPU100"],
+            "meta_dataset_eval_environment_strs": ["TEST_CPU100"],
+            # "meta_dataset_train_environment_strs": ["T4_CPU100"],
+            # "meta_dataset_eval_environment_strs": ["T4_CPU100"],
             # "meta_dataset_train_environment_strs": ["RTX2080Ti_CPU100"],
             # "meta_dataset_eval_environment_strs": ["RTX2080Ti_CPU100"],
 
