@@ -16,7 +16,9 @@ from torch.utils.data import DataLoader, RandomSampler
 from tqdm import tqdm
 
 from config import Config
-from data.dataset import MDataset, load_graphs, Graph
+from data.dataset import MDataset, load_graphs, Graph, load_dataset_pkl, save_dataset_pkl, dateset_exists, \
+    save_scalers_pkl, \
+    load_scalers_pkl, load_graphs_pkl, save_graphs_pkl
 from objects import ModelType, ckpts_dir, Environment
 from .base_module import MModule
 from .util import nested_detach
@@ -28,16 +30,33 @@ class Executor(ABC):
         self.model_ckpts_dir = ckpts_dir / self.model_type.name
         self.conf: Config = conf
         self._check_params()
-        self.train_mode: str|None = None # "single" or "meta"
+        self.train_mode: str | None = None  # "single" or "meta"
+        self.executor_name = 'BaseExecutor'
 
     def _prepare_single_dataset(self):
-        self.train_graphs = load_graphs(self.conf.dataset_environment,
-                                        train_or_eval="train",
-                                        use_dummy=self.conf.dataset_dummy)
+        # todo 使用pickle保存对象
+
+        self.set_seed()
+        self.train_records: Dict = dict()
+
+        # load dataset
+        if dateset_exists(self.conf.dataset_environment, self.executor_name, 'train'):
+            self.eval_graphs = load_graphs(self.conf.dataset_environment,
+                                           train_or_eval="eval",
+                                           use_dummy=self.conf.dataset_dummy)
+            self.preprocessed_train_ds = load_dataset_pkl(self.conf.dataset_environment, self.executor_name, 'train')
+            self.preprocessed_eval_ds = load_dataset_pkl(self.conf.dataset_environment, self.executor_name, 'eval')
+            self.scalers = load_scalers_pkl(self.conf.dataset_environment, self.executor_name, 'train')
+            # self.eval_graphs = load_graphs_pkl(self.conf.dataset_environment, self.executor_name, 'eval')
+            print('load dataset from file done')
+            return
+        # 后续useless,可以设置为None
         self.eval_graphs = load_graphs(self.conf.dataset_environment,
                                        train_or_eval="eval",
                                        use_dummy=self.conf.dataset_dummy)
-        self.set_seed()
+        self.train_graphs = load_graphs(self.conf.dataset_environment,
+                                        train_or_eval="train",
+                                        use_dummy=self.conf.dataset_dummy)
         self.preprocessed_train_ds: MDataset | None = None
         self.preprocessed_eval_ds: MDataset | None = None
 
@@ -48,8 +67,11 @@ class Executor(ABC):
         self.preprocessed_train_ds = self._init_preprocessed_dataset(train_ds)
         self.preprocessed_eval_ds = self._init_preprocessed_dataset(eval_ds)
 
-
-        self.train_records: Dict = dict()
+        # save
+        save_dataset_pkl(self.preprocessed_train_ds, self.conf.dataset_environment, self.executor_name, 'train')
+        save_dataset_pkl(self.preprocessed_eval_ds, self.conf.dataset_environment, self.executor_name, 'eval')
+        save_scalers_pkl(self.scalers, self.conf.dataset_environment, self.executor_name, 'train')
+        # save_graphs_pkl(self.eval_graphs, self.conf.dataset_environment, self.executor_name, 'eval')
 
     def _prepare_meta_dataset(self):
         self.meta_train_graphs: Dict[Environment, List[Graph]] = dict()
@@ -59,7 +81,6 @@ class Executor(ABC):
         self.meta_preprocessed_train_data_loaders: Dict[Environment, InfiniteIterator] = dict()
         self.meta_eval_dss: Dict[Environment, MDataset] = dict()
         self.meta_preprocessed_eval_dss: Dict[Environment, MDataset] = dict()
-        
 
         for env in self.conf.meta_dataset_train_environments:
             graphs = load_graphs(env, train_or_eval="train", use_dummy=self.conf.dataset_dummy)
@@ -80,9 +101,11 @@ class Executor(ABC):
     @abstractmethod
     def default_model_params() -> Dict[str, Any]:
         pass
+
     @abstractmethod
-    def _get_scalers(self, ds : MDataset) -> Dict[str, Any]:
+    def _get_scalers(self, ds: MDataset) -> Dict[str, Any]:
         pass
+
     @staticmethod
     @abstractmethod
     def grid_search_model_params() -> Dict[str, List]:
@@ -113,7 +136,7 @@ class Executor(ABC):
     def _init_model_type(self) -> ModelType:
         pass
 
-    def _generate_save_path(self, prefix: str="") -> str:
+    def _generate_save_path(self, prefix: str = "") -> str:
         time_format = "%Y-%m-%d_%H-%M-%S"
         time_str = time.strftime(time_format)
         save_path_name = f"{prefix}{time_str}"
@@ -173,6 +196,8 @@ class Executor(ABC):
             for i, data in enumerate(tqdm(train_dl)):
                 optimizer.zero_grad()
                 features, labels = data
+                features['x_op_feature'] =features["x_op_feature"].to(device=self.conf.device)
+                labels['y_node_durations'] = labels['y_node_durations'].to(device=self.conf.device)
                 outputs = model(features)
                 loss = model.compute_loss(outputs, labels)
                 loss.backward()
@@ -198,7 +223,8 @@ class Executor(ABC):
                         "step": curr_train_step,
                         "duration": train_dur
                     })
-                    self.save_model(save_path=save_path, model=model, curr_steps=curr_train_step, curr_loss_value=loss_value)
+                    self.save_model(save_path=save_path, model=model, curr_steps=curr_train_step,
+                                    curr_loss_value=loss_value)
                     model.train()
         self.save_train_plot(save_path)
 
@@ -211,11 +237,13 @@ class Executor(ABC):
                 train_error = compute_loss(learner(adaptation_data), adaptation_labels)
                 learner.adapt(train_error)
 
-    def meta_sample_task(self, env: Environment, batch_size: int) -> Tuple[Environment, Tuple[torch.Tensor, torch.Tensor]]:
+    def meta_sample_task(self, env: Environment, batch_size: int) -> Tuple[
+        Environment, Tuple[torch.Tensor, torch.Tensor]]:
         ds = self.meta_preprocessed_train_dss[env]
         if env not in self.meta_preprocessed_train_data_loaders:
             sampler = RandomSampler(ds, replacement=False)
-            self.meta_preprocessed_train_data_loaders[env] = InfiniteIterator(DataLoader(self.meta_preprocessed_train_dss[env], sampler=sampler, batch_size=batch_size))
+            self.meta_preprocessed_train_data_loaders[env] = InfiniteIterator(
+                DataLoader(self.meta_preprocessed_train_dss[env], sampler=sampler, batch_size=batch_size))
         dl = self.meta_preprocessed_train_data_loaders[env]
         task = next(dl)
         return task
@@ -234,7 +262,7 @@ class Executor(ABC):
         meta_tps = self.conf.meta_task_per_step
         meta_shots = self.conf.meta_shots
         meta_fast_adaption_step = self.conf.meta_fast_adaption_step
-        
+
         meta_model = l2l.algorithms.MAML(model, lr=meta_lr)
         opt = self.conf.optimizer_cls(model.parameters(), lr=lr)
 
@@ -290,7 +318,8 @@ class Executor(ABC):
                     "step": curr_train_step,
                     "duration": train_dur
                 })
-                self.save_model(save_path=save_path, model=meta_model, curr_steps=curr_train_step, curr_loss_value=loss_value)
+                self.save_model(save_path=save_path, model=meta_model, curr_steps=curr_train_step,
+                                curr_loss_value=loss_value)
                 model.train()
 
     def save_train_plot(self, save_path):
@@ -336,7 +365,7 @@ class Executor(ABC):
         metrics = self._evaluate(model, self.conf.dataset_environment, self.preprocessed_eval_ds)
         logging.info(f"{self.model_type} evaluated metrics: {metrics}")
         return metrics
-    
+
     def meta_evaluate(self):
         model = self.init_model()
         self.train_mode = "meta"
@@ -364,6 +393,8 @@ class Executor(ABC):
         eval_losses = list()
         for data in dl:
             features, labels = data
+            features['x_op_feature'] = features["x_op_feature"].to(device=self.conf.device)
+            labels['y_node_durations'] = labels['y_node_durations'].to(device=self.conf.device)
             with torch.no_grad():
                 outputs = model(features)
             loss = model.compute_loss(outputs, labels)

@@ -28,6 +28,7 @@ from .transformer import TransformerModel
 class SubgraphBasedExecutor(Executor):
     def __init__(self, conf: Config | None = None):
         super().__init__(conf)
+        self.name = "SubgraphBasedExecutor"
 
     @staticmethod
     def subgraph_features(graph: Graph, subgraph_node_size: int = 10, step: int=5, dataset_params: Dict={}) -> \
@@ -293,12 +294,12 @@ class MLPTest_SubgraphModel(MModule):
             = x_node_feature_count, x_node_feature_size, y_nodes_duration_count, y_nodes_duration_size
         self.flatten = torch.nn.Flatten()
         self.linear1 = torch.nn.Linear(in_features=self.x_node_feature_count * self.x_node_feature_size,
-                                       out_features=512)
+                                       out_features=64)
         self.relu1 = torch.nn.ReLU()
-        self.linear2 = torch.nn.Linear(in_features=512,
-                                       out_features=256)
+        self.linear2 = torch.nn.Linear(in_features=64,
+                                       out_features=32)
         self.relu2 = torch.nn.ReLU()
-        self.output = torch.nn.Linear(256, self.y_nodes_duration_count * self.y_nodes_duration_size)
+        self.output = torch.nn.Linear(32, self.y_nodes_duration_count * self.y_nodes_duration_size)
         self.loss_fn = MSELoss()
 
     def forward(self, X):

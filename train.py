@@ -111,12 +111,12 @@ def launch(models: List[ModelType], launch_lambda):
 
 
 train_models = [
-    # ModelType.MLP,
+    ModelType.MLP,
     # ModelType.GBDT,
     # ModelType.GCNSubgraph,
     # ModelType.PerfNet,
     # ModelType.Transformer,
-    ModelType.MLPTestSubgraph,
+    # ModelType.MLPTestSubgraph,
     # ModelType.MLPTestGrouping,
     # ModelType.LSTM,
     # ModelType.GRU,

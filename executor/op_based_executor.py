@@ -30,6 +30,7 @@ class OPBasedExecutor(Executor):
     def __init__(self, conf: Config | None = None):
         super().__init__(conf)
         self.scalers: Tuple | None = None
+        self.name = 'OPBasedExecutor'
 
     @staticmethod
     def node_features(g,
@@ -122,18 +123,21 @@ class OPBasedExecutor(Executor):
             processed_features.append({
                 "x_id": feature["x_id"],
                 "x_graph_id": feature["x_graph_id"],
-                "x_op_feature": torch.Tensor(op_feature_array[i]).to(device=self.conf.device)
+                # 运行时再传到cuda那边
+                # "x_op_feature": torch.Tensor(op_feature_array[i]).to(device=self.conf.device)
+                "x_op_feature": torch.Tensor(op_feature_array[i])
             })
             processed_labels.append({
                 "y_id": label["y_id"],
                 "y_graph_id": label["y_graph_id"],
-                "y_node_durations": torch.Tensor(y_array[i]).to(device=self.conf.device)
+                # "y_node_durations": torch.Tensor(y_array[i]).to(device=self.conf.device)
+                "y_node_durations": torch.Tensor(y_array[i])
             })
 
         ds = MDataset(processed_features, processed_labels)
         return ds
 
-    def _evaluate(self, model, env: Environment,ds: MDataset) -> Dict[str, float]:
+    def _evaluate(self, model, env: Environment, ds: MDataset) -> Dict[str, float]:
         input_batches, output_batches, eval_loss = self._dl_evaluate_pred(model, env, ds)
 
         batches_len = len(input_batches)
@@ -168,11 +172,11 @@ class MLPModel(MModule):
 
     def __init__(self, input_dimension, output_dimension, **kwargs):
         super().__init__(**kwargs)
-        self.input = torch.nn.Linear(input_dimension, 512)
+        self.input = torch.nn.Linear(input_dimension, 128)
         self.relu1 = ReLU()
-        self.dense1 = torch.nn.Linear(512, 128)
+        self.dense1 = torch.nn.Linear(128, 64)
         self.relu2 = ReLU()
-        self.dense2 = torch.nn.Linear(128, 32)
+        self.dense2 = torch.nn.Linear(64, 32)
         self.relu3 = ReLU()
         self.output = torch.nn.Linear(32, output_dimension)
         self.loss_fn = MSELoss()
@@ -346,6 +350,7 @@ class GBDT_OPBasedExecutor(OPBasedExecutor):
         return float(filename[:filename.index(".")].split("_")[-1])
 
     def single_train(self):
+        # todo 没有batchl了
         logging.info(f"{self.model_type} starts training.")
         self._prepare_single_dataset()
         save_path = self._generate_save_path(prefix="single_train")
