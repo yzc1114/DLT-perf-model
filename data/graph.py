@@ -123,10 +123,16 @@ class Graph:
             operator_type_id = int(d["op"][i])
             operator_mode = OperatorMode(operator_modes_map[d["dir"][i]])
             op_hyper_parameters = list(eval(d["params"][i]))
+            # 某些算子的参数超过30个，这里只取前30个
+            op_hyper_parameters = op_hyper_parameters[:30]
+            if len(op_hyper_parameters) < 30:
+                op_hyper_parameters.extend(
+                    [0 for i in range(30 - len(op_hyper_parameters))])
+
             flops = int(d["flops"][i])
             bytes = int(d["bytes"][i])
-            kduration = eval(format(int(d["kduration"][i])/1000000, '.2f')) # ms
-            space = eval(format(int(d["space"][i])/1000000, '.2f')) # ms
+            kduration = eval(format(int(d["kduration"][i]) / 1000, '.2f'))  # us
+            space = eval(format(int(d["space"][i]) / 1000, '.2f'))  # us
             batch_size = int(d["batch"][i])
             op = Operator(operator_type_id=operator_type_id,
                           operator_mode=operator_mode,
@@ -145,7 +151,8 @@ class Graph:
         root_node = nodes[0]
         return Graph(filename, env, batch_size, nodes, root_node)
 
-    def subgraphs(self, subgraph_count: Optional[int] = None, subgraph_node_size: Optional[int] = None, step: Optional[int] = None) -> \
+    def subgraphs(self, subgraph_count: Optional[int] = None, subgraph_node_size: Optional[int] = None,
+                  step: Optional[int] = None) -> \
             Tuple[List[List[GraphNode]], Dict[int, int]]:
         if subgraph_node_size is None:
             assert subgraph_count is not None
@@ -163,7 +170,7 @@ class Graph:
                                         min(idx + subgraph_node_size, len(self.nodes))]
             subgraphs.append(subgraph_nodes)
             for node in subgraph_nodes:
-                node_id_to_group_idx[node.node_id] = idx//step
+                node_id_to_group_idx[node.node_id] = idx // step
             dummy_node_require = False
             while len(subgraph_nodes) < subgraph_node_size:
                 subgraph_nodes.append(GraphNode.dummy_node())

@@ -180,6 +180,10 @@ class Executor(ABC):
         model = torch.load(ckpt_filepath)
         return model
 
+    @abstractmethod
+    def to_device(self, features, labels):
+        pass
+
     def single_train(self):
         self.train_mode = "single"
         self._prepare_single_dataset()
@@ -202,8 +206,7 @@ class Executor(ABC):
             for i, data in enumerate(tqdm(train_dl)):
                 optimizer.zero_grad()
                 features, labels = data
-                features['x_op_feature'] = features["x_op_feature"].to(device=self.conf.device)
-                labels['y_node_durations'] = labels['y_node_durations'].to(device=self.conf.device)
+                features, labels = self.to_device(features, labels)
                 outputs = model(features)
                 loss = model.compute_loss(outputs, labels)
                 loss.backward()

@@ -63,6 +63,8 @@ class OPBasedExecutor(Executor):
         for graph in graphs:
             X, Y = self.node_features(graph, **conf.dataset_params)
             for x in X:
+                # if len(x['x_op_feature'])!=37:
+                #     print(x['x_graph_id'], len(x['x_op_feature']))
                 op_feature_len = max(op_feature_len, len(x["x_op_feature"]))
             op_X.extend(X)
             op_Y.extend(Y)
@@ -165,6 +167,11 @@ class OPBasedExecutor(Executor):
                 graph_id_to_duration_pred[graph_id] += op_duration
         duration_metrics = MetricUtil.compute_duration_metrics(self.eval_graphs, graph_id_to_duration_pred)
         return {"eval_loss": eval_loss, **duration_metrics}
+
+    def to_device(self, features, labels):
+        features['x_op_feature'] = features["x_op_feature"].to(device=self.conf.device)
+        labels['y_node_durations'] = labels['y_node_durations'].to(device=self.conf.device)
+        return features, labels
 
 
 class MLPModel(MModule):

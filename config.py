@@ -142,7 +142,7 @@ train_configs = {
         },
         "dataset_dummy": False,
         "batch_size": 512,
-        "eval_steps": 2000,
+        "eval_steps": 500,
         "learning_rate": 1e-3,
         "epochs": 5,
         "optimizer": "Adam",

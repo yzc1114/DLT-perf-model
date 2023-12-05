@@ -192,14 +192,18 @@ class SubgraphBasedExecutor(Executor):
             processed_features.append({
                 "x_graph_id": feature["x_graph_id"],
                 "x_node_ids": feature["x_node_ids"],
-                "x_subgraph_feature": torch.Tensor(transformed_x_subgraph_feature).to(device=self.conf.device),
-                "x_adj_matrix": torch.Tensor(x_adj_matrix).to(device=self.conf.device)
+                # "x_subgraph_feature": torch.Tensor(transformed_x_subgraph_feature).to(device=self.conf.device),
+                # "x_adj_matrix": torch.Tensor(x_adj_matrix).to(device=self.conf.device)
+                "x_subgraph_feature": torch.Tensor(transformed_x_subgraph_feature),
+                "x_adj_matrix": torch.Tensor(x_adj_matrix)
             })
 
             processed_labels.append({
                 "y_graph_id": label["y_graph_id"],
-                "y_nodes_durations": torch.Tensor(transformed_y_nodes_durations).to(device=self.conf.device),
-                "y_subgraph_durations": torch.Tensor(transformed_y_subgraph_durations).to(device=self.conf.device)
+                # "y_nodes_durations": torch.Tensor(transformed_y_nodes_durations).to(device=self.conf.device),
+                # "y_subgraph_durations": torch.Tensor(transformed_y_subgraph_durations).to(device=self.conf.device)
+                "y_nodes_durations": torch.Tensor(transformed_y_nodes_durations),
+                "y_subgraph_durations": torch.Tensor(transformed_y_subgraph_durations)
             })
 
         ds = MDataset(processed_features, processed_labels)
@@ -234,7 +238,7 @@ class SubgraphBasedExecutor(Executor):
             graph_groups = defaultdict(list)
             for i, graph_id in enumerate(graph_ids):
                 graph_groups[graph_id].append(i)
-            
+
             for graph_id, indices in graph_groups.items():
                 group_x_node_ids = [v for i, v in enumerate(inputs["x_node_ids"]) if i in indices]
                 group_outputs = [v for i, v in enumerate(outputs) if i in indices]
