@@ -4,6 +4,7 @@ import pathlib
 import time
 from typing import Tuple, Any, Dict, List, Callable
 
+import os
 import matplotlib.pyplot as plt
 import numpy as np
 import torch.optim
@@ -45,7 +46,7 @@ def single_train_loop(model_type: ModelType,
         for i, data in enumerate(tqdm(train_dl)):
             optimizer.zero_grad()
             features, labels = data
-            features, labels = to_device(features, labels)
+            features, labels = to_device(conf, features, labels)
             outputs = model(features)
             loss = model.compute_loss(outputs, labels)
             loss.backward()
@@ -72,20 +73,35 @@ def single_train_loop(model_type: ModelType,
                     "step": curr_train_step,
                     "duration": train_dur
                 })
-                save_model(save_path=save_path, model=model, curr_steps=curr_train_step,
-                                curr_loss_value=loss_value)
+                save_model(conf=conf,
+                           train_records=train_records,
+                           save_path=save_path,
+                           model=model,
+                           curr_steps=curr_train_step,
+                           curr_loss_value=loss_value)
                 model.train()
-    save_train_plot(save_path)
+    save_train_plot(conf, train_records, save_path)
 
-def save_model(self, save_path, model, curr_steps: int, curr_loss_value: float):
+def _ensure_save_dir(save_path):
+    p = pathlib.Path(save_path)
+    if p.exists():
+        assert p.is_dir()
+        return
+    try:
+        os.makedirs(save_path)
+    except IOError:
+        logging.fatal("Cannot create save path: %s" % save_path)
+        exit(-1)
+
+def save_model(conf, train_records, save_path, model, curr_steps: int, curr_loss_value: float):
     d = {
-        "train_config": self.conf.raw_config,
-        "train_records": self.train_records
+        "train_config": conf.raw_config,
+        "train_records": train_records
     }
-    self._ensure_save_dir(save_path=save_path)
+    _ensure_save_dir(save_path=save_path)
     with open(pathlib.Path(save_path, "train_records.json"), "w") as f:
         json.dump(d, f, indent="\t")
-    self._save_ckpt_to(model, pathlib.Path(save_path, f"ckpt_{curr_steps}.pth"))
+    torch.save(model, pathlib.Path(save_path, f"ckpt_{curr_steps}.pth"))
 
 
 def generate_save_path(model_ckpts_dir: str, prefix: str = "") -> str:
@@ -115,10 +131,10 @@ def evaluate_pred(conf: Config, model: MModule, ds: MDataset, to_device: Callabl
 
     return input_batches, output_batches, eval_loss
 
-def save_train_plot(self, save_path):
+def save_train_plot(conf, train_records, save_path):
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
-    eval_metrics = self.train_records["eval_metrics"]
+    eval_metrics = train_records["eval_metrics"]
 
     def get_list(metric_key):
         l = list()
@@ -126,7 +142,7 @@ def save_train_plot(self, save_path):
             l.append(eval_metric["metrics"][metric_key])
         return l
 
-    x_step = self.conf.eval_steps
+    x_step = conf.eval_steps
     X = [x_step * i for i in range(len(eval_metrics))]
     # train loss, eval loss
     line_plots = (

@@ -12,6 +12,7 @@ import string
 from typing import List, Optional, Dict, Tuple
 
 import numpy as np
+import pickle
 import multiprocessing as mp
 from enum import Enum
 from functools import lru_cache
@@ -20,6 +21,7 @@ from logger import logging
 
 repo_root = pathlib.Path(__file__).parent.parent.absolute()
 datasets_path = str(repo_root / "datasets")
+pkl_path = str(repo_root / "pkl")
 configs_path = str(pathlib.Path(__file__).parent / "configs")
 print(f"datasets_path: {datasets_path}")
 print(f"configs_path: {configs_path}")
@@ -330,3 +332,64 @@ def load_graphs(environment: Environment, train_or_eval: str = "train", use_dumm
     graphs = _load_graphs()
     return graphs
 
+
+def save_dataset_pkl(ds: MDataset, environment: Environment, executor: str, train_or_eval: str = "train",
+                     normalization: str = 'Standard'):
+    data_dir = pathlib.Path(pkl_path) / f"{environment}" / executor / train_or_eval / normalization
+    if not os.path.exists(str(data_dir)):
+        os.makedirs(str(data_dir))
+    with open(str(data_dir / "features.pkl"), "wb") as f:
+        pickle.dump(ds.features, f)
+    with open(str(data_dir / "labels.pkl"), "wb") as f:
+        pickle.dump(ds.labels, f)
+
+
+def load_dataset_pkl(environment: Environment, executor: str, train_or_eval: str = "train",
+                     normalization: str = 'Standard'):
+    print(f"Loading dataset {environment} {executor} {train_or_eval} {normalization}")
+    data_dir = pathlib.Path(pkl_path) / f"{environment}" / executor / train_or_eval / normalization
+    with open(str(data_dir / "features.pkl"), "rb") as f:
+        features = pickle.load(f)
+    with open(str(data_dir / "labels.pkl"), "rb") as f:
+        labels = pickle.load(f)
+    return MDataset(features, labels)
+
+
+def dateset_exists(environment: Environment, executor: str, train_or_eval: str = "train",
+                   normalization: str = 'Standard'):
+    data_dir = pathlib.Path(pkl_path) / f"{environment}" / executor / train_or_eval / normalization
+    return os.path.exists(str(data_dir / "features.pkl"))
+
+
+def save_scalers_pkl(scalers, environment: Environment, executor: str, train_or_eval: str = "train",
+                     normalization: str = 'Standard'):
+    data_dir = pathlib.Path(pkl_path) / f"{environment}" / executor / train_or_eval / normalization
+    if not os.path.exists(str(data_dir)):
+        os.makedirs(str(data_dir))
+    with open(str(data_dir / "scalers.pkl"), "wb") as f:
+        pickle.dump(scalers, f)
+
+
+def load_scalers_pkl(environment: Environment, executor: str, train_or_eval: str = "train",
+                     normalization: str = 'Standard'):
+    print(f"Loading scalers {environment} {executor} {train_or_eval}, {normalization}")
+    data_dir = pathlib.Path(pkl_path) / f"{environment}" / executor / train_or_eval / normalization
+    with open(str(data_dir / "scalers.pkl"), "rb") as f:
+        scalers = pickle.load(f)
+    return scalers
+
+
+def save_graphs_pkl(graphs: List[Graph], environment: Environment, executor: str, train_or_eval: str = "train"):
+    data_dir = pathlib.Path(pkl_path) / f"{environment}" / executor / train_or_eval
+    if not os.path.exists(str(data_dir)):
+        os.makedirs(str(data_dir))
+    with open(str(data_dir / "graphs.pkl"), "wb") as f:
+        pickle.dump(graphs, f)
+
+
+def load_graphs_pkl(environment: Environment, executor: str, train_or_eval: str = "train"):
+    print(f"Loading graphs {environment} {executor} {train_or_eval}")
+    data_dir = pathlib.Path(pkl_path) / f"{environment}" / executor / train_or_eval
+    with open(str(data_dir / "graphs.pkl"), "rb") as f:
+        graphs = pickle.load(f)
+    return graphs
