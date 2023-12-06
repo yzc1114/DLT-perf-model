@@ -5,7 +5,7 @@ import torch
 from torch import nn, Tensor
 from torch.nn import MSELoss
 
-from .base_module import MModule
+from base_module import MModule
 import logging
 
 class PositionalEncoder(nn.Module):
