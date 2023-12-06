@@ -216,7 +216,8 @@ class Executor(ABC):
                 loss_value = float(nested_detach(loss))
                 self.train_records.setdefault("loss", list())
                 self.train_records["loss"].append(loss_value)
-                if curr_train_step % self.conf.eval_steps == 0:
+                # todo evaluate单独拿出来
+                if curr_train_step % (20000) == 0:
                     now = time.time_ns()
                     train_dur = (now - start) / 1e9
                     logging.info(f"{self.model_type} trained for {train_dur} seconds.")
@@ -232,9 +233,7 @@ class Executor(ABC):
                         "step": curr_train_step,
                         "duration": train_dur
                     })
-                    if curr_train_step % (self.conf.eval_steps*10) == 0:
-                        self.save_model(save_path=save_path, model=model, curr_steps=curr_train_step,
-                                        curr_loss_value=loss_value)
+                    self.save_model(save_path=save_path, model=model, curr_steps=curr_train_step, curr_loss_value=loss_value)
                     model.train()
         self.save_train_plot(save_path)
 
@@ -333,7 +332,12 @@ class Executor(ABC):
                 model.train()
 
     def save_train_plot(self, save_path):
-        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+        fig, axes = plt.subplots(1, 4, figsize=(15, 5))
+        # plot loss
+        ax = axes[0]
+        ax.plot([ i for i in range(len(self.train_records['loss']))],self.train_records["loss"], label="loss")
+        ax.set_xlabel("steps")
+        ax.legend()
 
         eval_metrics = self.train_records["eval_metrics"]
 
@@ -352,7 +356,7 @@ class Executor(ABC):
             ["RMSE"]
         )
         for i, line_plot_keys in enumerate(line_plots):
-            ax = axes[i]
+            ax = axes[i+1]
             for key in line_plot_keys:
                 ax.plot(X, get_list(key), label=key)
             ax.set_xlabel("steps")

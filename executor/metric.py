@@ -16,8 +16,14 @@ class MetricUtil:
             y.append(ground_truth)
         y_hat = np.array(y_hat)
         y = np.array(y)
+        return MetricUtil._compute(y_hat, y)
+
+    @staticmethod
+    def _compute(y_hat: list, y: list) -> Dict[str, float]:
         MRE = np.sum(np.abs(y - y_hat) / y) / len(y)
         MAE = np.sum(np.abs(y - y_hat)) / np.sum(y)
+        y = y/1000
+        y_hat = y_hat/1000
         RMSE = np.sqrt(np.sum(np.power(y - y_hat, 2)) / len(y))
         return {
             "MRE": MRE,
