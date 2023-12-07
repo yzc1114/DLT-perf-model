@@ -217,7 +217,7 @@ class Executor(ABC):
                 self.train_records.setdefault("loss", list())
                 self.train_records["loss"].append(loss_value)
                 # todo evaluate单独拿出来
-                if curr_train_step % (20000) == 0:
+                if curr_train_step % (2000) == 0:
                     now = time.time_ns()
                     train_dur = (now - start) / 1e9
                     logging.info(f"{self.model_type} trained for {train_dur} seconds.")

@@ -268,7 +268,7 @@ class SubgraphBasedExecutor(Executor):
 
 class MLPTest_SubgraphBasedExecutor(SubgraphBasedExecutor):
     def _init_model_type(self) -> ModelType:
-        return ModelType.MLPTestGrouping
+        return ModelType.MLPTestSubgraph
 
     @staticmethod
     def default_model_params() -> Dict[str, Any]:
