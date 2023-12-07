@@ -132,7 +132,13 @@ def evaluate_pred(conf: Config, model: MModule, ds: MDataset, to_device: Callabl
     return input_batches, output_batches, eval_loss
 
 def save_train_plot(conf, train_records, save_path):
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    fig, axes = plt.subplots(1, 4, figsize=(15, 5))
+    # plot loss
+    ax = axes[0]
+    # todo, 采样
+    ax.plot([ i for i in range(len(train_records['loss']))],train_records["loss"], label="loss")
+    ax.set_xlabel("steps")
+    ax.legend()
 
     eval_metrics = train_records["eval_metrics"]
 
@@ -151,7 +157,7 @@ def save_train_plot(conf, train_records, save_path):
         ["RMSE"]
     )
     for i, line_plot_keys in enumerate(line_plots):
-        ax = axes[i]
+        ax = axes[i+1]
         for key in line_plot_keys:
             ax.plot(X, get_list(key), label=key)
         ax.set_xlabel("steps")
