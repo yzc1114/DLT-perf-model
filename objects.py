@@ -18,6 +18,7 @@ class ModelType(Enum):
     LSTM = 6
     GCNGrouping = 7
     GRU = 8
+    RNN = 9
     MLPTestGrouping = 100
     MLPTestSubgraph = 101
 

@@ -18,6 +18,7 @@ class ModelType(Enum):
     LSTM = 6
     GCNGrouping = 7
     GRU = 8
+    RNN = 9
     MLPTestGrouping = 100
     MLPTestSubgraph = 101
 
@@ -33,7 +34,10 @@ class Environment:
     def from_str(environment_str: str) -> 'Environment':
         strs = environment_str.split("_")
         gpu_type = GPUType[strs[0]]
-        cpu = int(strs[1].split("CPU")[-1])
+        if 'ALL' in strs[1]:
+            cpu = -1
+        else:
+            cpu = int(strs[1].split("CPU")[-1])
         return Environment(gpu_type=gpu_type, cpu=cpu)
 
     def __str__(self):

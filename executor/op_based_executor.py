@@ -15,7 +15,7 @@ import torch.nn
 import torch.optim
 from sklearn import ensemble
 from sklearn.metrics import mean_squared_error
-from torch.nn import MSELoss, ReLU
+from torch.nn import MSELoss, ReLU,
 
 from config import Config
 from data.dataset import MDataset, Graph

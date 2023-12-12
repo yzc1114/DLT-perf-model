@@ -10,3 +10,6 @@ mnasnet0_75
 regnet_x_400mf
 regnet_y_800mf
 deeplabv3_resnet5
+vgg13
+vgg13_bn
+shufflenet_v2_x2_0
