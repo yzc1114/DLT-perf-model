@@ -95,6 +95,34 @@ def grid_search_loop(model_type: ModelType,
 
 
 
+def calculate_metrics(start, 
+                      model_type:ModelType, 
+                      curr_train_step:int, 
+                      model:MModule,
+                      conf: Config,
+                      compute_eval_metrics: Callable[[List, List, float], Dict],
+                      preprocessed_eval_ds: MDataset,
+                      to_device: Callable[[Any, Any], Tuple[Any, Any]],
+                        loss_value: float,
+                        train_records: Dict,
+                      ):
+    now = time.time_ns()
+    train_dur = (now - start) / 1e9
+    logging.info(f"{model_type} trained for {train_dur} seconds.")
+    logging.info(f"{model_type} eval at step {curr_train_step}.")
+    model.eval()
+    input_batches, output_batches, eval_loss = evaluate_pred(conf, model, preprocessed_eval_ds, to_device)
+    metrics = compute_eval_metrics(input_batches, output_batches, eval_loss)
+    logging.info(f"{model_type} train loss: {loss_value}, eval metrics: {metrics}")
+    metrics["train_loss"] = loss_value
+
+    train_records.setdefault("eval_metrics", list())
+    train_records["eval_metrics"].append({
+        "metrics": metrics,
+        "step": curr_train_step,
+        "duration": train_dur
+        })
+
 def single_train_loop(model_type: ModelType,
                       conf: Config,
                       preprocessed_train_ds: MDataset,
@@ -103,7 +131,7 @@ def single_train_loop(model_type: ModelType,
                       compute_eval_metrics: Callable[[List, List, float], Dict],
                       to_device: Callable[[Any, Any], Tuple[Any, Any]],
                       ):
-    model_ckpts_dir = ckpts_dir / model_type.name
+    model_ckpts_dir = ckpts_dir / conf.dataset_environment_str/ model_type.name
     save_path = generate_save_path(prefix="single_train", model_ckpts_dir=model_ckpts_dir)
     processed_train_ds = preprocessed_train_ds
     train_records: Dict = dict()
@@ -134,22 +162,7 @@ def single_train_loop(model_type: ModelType,
             train_records.setdefault("loss", list())
             train_records["loss"].append(loss_value)
             if curr_train_step % conf.eval_steps == 0:
-                now = time.time_ns()
-                train_dur = (now - start) / 1e9
-                logging.info(f"{model_type} trained for {train_dur} seconds.")
-                logging.info(f"{model_type} eval at step {curr_train_step}.")
-                model.eval()
-                input_batches, output_batches, eval_loss = evaluate_pred(conf, model, preprocessed_eval_ds, to_device)
-                metrics = compute_eval_metrics(input_batches, output_batches, eval_loss)
-                logging.info(f"{model_type} train loss: {loss_value}, eval metrics: {metrics}")
-                metrics["train_loss"] = loss_value
-
-                train_records.setdefault("eval_metrics", list())
-                train_records["eval_metrics"].append({
-                    "metrics": metrics,
-                    "step": curr_train_step,
-                    "duration": train_dur
-                })
+                calculate_metrics(start, model_type, curr_train_step, model, conf, compute_eval_metrics, preprocessed_eval_ds, to_device, loss_value, train_records)
                 save_model(conf=conf,
                            train_records=train_records,
                            save_path=save_path,

@@ -4,7 +4,7 @@ import pathlib
 from typing import Dict, List
 
 from logger import init_logging
-from objects import ModelType, ckpts_dir
+from objects import ModelType,GPUType, ckpts_dir
 
 init_logging()
 
@@ -37,11 +37,11 @@ class TrainRecord:
         return reduce_func(self.eval_metrics, key=lambda x: x.metrics[metric_name])
 
 
-def load_train_records(train_models: List[ModelType]):
+def load_train_records(gpu_type: GPUType, train_models: List[ModelType]):
     train_records = dict()
     for train_model in train_models:
         train_records[train_model] = list()
-        train_model_dir = ckpts_dir / train_model.name
+        train_model_dir = ckpts_dir /gpu_type.name/ train_model.name
         if not train_model_dir.exists():
             continue
         for dirname in os.listdir(str(train_model_dir)):

@@ -24,36 +24,31 @@ class ModelType(Enum):
 
 
 class Environment:
-    def __init__(self, gpu_type: 'GPUType', cpu: int):
+    def __init__(self, gpu_type: 'GPUType'):
         self.gpu_type: GPUType = gpu_type
-        self.cpu: int = cpu
         # self.framework: str = framework
         # self.cuda_version: str = cuda_version
 
     @staticmethod
     def from_str(environment_str: str) -> 'Environment':
-        strs = environment_str.split("_")
-        gpu_type = GPUType[strs[0]]
-        if 'ALL' in strs[1]:
-            cpu = -1
-        else:
-            cpu = int(strs[1].split("CPU")[-1])
-        return Environment(gpu_type=gpu_type, cpu=cpu)
+        gpu_type = GPUType[environment_str]
+        return Environment(gpu_type=gpu_type)
 
     def __str__(self):
         # return f"{self.gpu_type.name}_{self.framework}_{self.cuda_version}"
-        return f"{self.gpu_type.name}_CPU{self.cpu}"
+        # return f"{self.gpu_type.name}_CPU{self.cpu}"
+        return self.gpu_type.name
 
     def __repr__(self):
         return self.__str__()
     
     def __hash__(self) -> int:
-        return self.gpu_type.__hash__() + self.cpu.__hash__()
+        return self.gpu_type.__hash__()
     
     def __eq__(self, __value: object) -> bool:
         if not isinstance(__value, Environment):
             return False
-        return __value.gpu_type == self.gpu_type and __value.cpu == self.cpu
+        return __value.gpu_type == self.gpu_type 
 
     def __ne__(self, __value: object) -> bool:
         return not self.__eq__(__value)
@@ -63,11 +58,17 @@ class Environment:
 
 
 class GPUType(Enum):
-    RTX2080Ti = 0
-    T4 = 1
-    RTX4090 = 2
-    P40 = 3
-    K80 = 4
+    RTX2080Ti_CPUALL = 0
+    RTX2080Ti_CPU100 = 1
+    RTX2080Ti_CPU80 = 2
+    RTX2080Ti_CPU60 = 3
+    T4_CPUALL = 4
+    T4_CPU100 = 5
+    T4_CPU80 = 6
+    T4_CPU60 = 7
+    RTX4090 = 8
+    P40 = 9
+    K80 = 10
     TEST = 100
 
 

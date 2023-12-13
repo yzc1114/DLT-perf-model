@@ -60,8 +60,14 @@ class Environment:
 
 
 class GPUType(Enum):
-    RTX2080Ti = 0
-    T4 = 1
+    RTX2080Ti_CPUALL = 0
+    RTX2080Ti_CPU100 = 1
+    RTX2080Ti_CPU80 = 2
+    RTX2080Ti_CPU60 = 3
+    T4_CPUALL = 4
+    T4_CPU100 = 5
+    T4_CPU80 = 6
+    T4_CPU60 = 7
     RTX4090 = 2
     P40 = 3
     K80 = 4
