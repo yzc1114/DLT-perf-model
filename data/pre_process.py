@@ -6,7 +6,7 @@ import random
 import pandas as pd
 
 # dataset_path = str(pathlib.Path(os.getcwd()) / ".." / "datasets")
-dataset_path = '/root/guohao/DLT-perf-model/datasets'
+dataset_path = '/root/guohao/repos/DLT-perf-model/datasets'
 config_path = str(pathlib.Path(os.getcwd())  / "configs" / "models")
 
 
@@ -65,20 +65,29 @@ def delete_unvalid_data(data_set: str):
     for file in os.listdir(train_data):
         if not file.endswith('.csv'):
             continue
+        file_size = os.path.getsize(os.path.join(train_data, file))
+        if file_size == 0:
+            print('remove invalid file: ' +  os.path.join(train_data, file))
+            os.remove(os.path.join(train_data, file))
+            continue
         df = pd.read_csv(os.path.join(train_data, file))
         if (df['space'] < -1000).any() :
             print('remove invalid file: ' +  os.path.join(train_data, file))
             os.remove(os.path.join(train_data, file))
+            continue
         # 删除过大的数据
         if (df['batch'] > 256).any() or (df['h'] > 512).any() or  (df['input_type'] != 1).any():
             print('remove invalid file: ' +  os.path.join(train_data, file))
             os.remove(os.path.join(train_data, file))
+            continue
         if (df['batch'] < 8).any() or (df['h'] < 32).any():
             print('remove invalid file: ' +  os.path.join(train_data, file))
             os.remove(os.path.join(train_data, file))
+            continue
         if len(df) > 3000:
             print('remove invalid file: ' +  os.path.join(train_data, file))
             os.remove(os.path.join(train_data, file))
+            continue
     return
 
 
@@ -89,7 +98,9 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    delete_unvalid_data('RTX2080Ti_CPUALL')  
-    split_data('RTX2080Ti_CPUALL')
+    # delete_unvalid_data('RTX2080Ti_CPUALL')  
+    # split_data('RTX2080Ti_CPUALL')
     # delete_unvalid_data('T4_CPUALL')
     # split_data('T4_CPUALL')
+    delete_unvalid_data('P4_CPUALL')
+    split_data('P4_CPUALL')

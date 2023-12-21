@@ -5,8 +5,8 @@ import tqdm
 import random
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', type=str, default='datasets/T4_CPUALL/train', help='dataset dir path')
-parser.add_argument('--output', type=str, default='datasets/T4_CPUALL/train/merged.csv', help='output csv path')
+parser.add_argument('--dataset', type=str, default='datasets/T4_CPU60/train', help='dataset dir path')
+parser.add_argument('--output', type=str, default='datasets/T4_CPU60/train/merged.csv', help='output csv path')
 
 args = parser.parse_args()
 dataset_dir = args.dataset
