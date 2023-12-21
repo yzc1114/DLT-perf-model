@@ -348,9 +348,11 @@ class Graph:
     def subgraphs(self, subgraph_count: Optional[int] = None, subgraph_node_size: Optional[int] = None,
                   step: Optional[int] = None) -> \
             Tuple[List[List[GraphNode]], Dict[int, int]]:
+        dummy_subgraph = False
         if subgraph_node_size is None:
             assert subgraph_count is not None
             subgraph_node_size = math.ceil(len(self.nodes) / subgraph_count)
+            dummy_subgraph = True
         # subgraphs, node graph mapping
         if step is None:
             step = subgraph_node_size
@@ -372,6 +374,11 @@ class Graph:
             if dummy_node_require:
                 break
             idx += step
+        # 添加dummy graph
+        if dummy_subgraph and len(subgraphs) < subgraph_count:
+            while(len(subgraphs) < subgraph_count):
+                subgraphs.append([GraphNode.dummy_node()
+                              for i in range(subgraph_node_size)])
         return subgraphs, node_id_to_group_idx
 
 

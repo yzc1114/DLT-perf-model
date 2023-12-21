@@ -34,7 +34,7 @@ def get_metirc_best_records(gpu_records:Dict[ModelType, List[TrainRecord]],metri
 if __name__ == '__main__':
     records: Dict[GPUType, Dict[ModelType, List[TrainRecord]]] = dict()
     best_records : Dict[GPUType, TrainRecord] = dict()
-    metric_name = 'MRE'
+    metric_name = 'RMSE'
     for gpu in gpus:
         logging.info(f"GPU: {gpu.name}")
         records[gpu] = load_train_records(gpu, train_models)
