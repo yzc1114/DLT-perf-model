@@ -211,6 +211,7 @@ def meta_train(model_type: ModelType,
 
     for curr_train_step in range(meta_train_steps):
         iteration_error = 0.0
+        opt.zero_grad()
         for _ in range(meta_tps):
             learner = meta_model.clone()
             envs = meta_preprocessed_train_support_loaders.keys()
@@ -237,7 +238,7 @@ def meta_train(model_type: ModelType,
         loss_value = iteration_error.item()
         print('Loss : {:.3f}'.format(loss_value))
 
-        opt.zero_grad()
+
         for p in meta_model.parameters():
             p.grad.data.mul_(1.0 / meta_tps)
         opt.step()
