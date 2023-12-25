@@ -102,5 +102,5 @@ if __name__ == '__main__':
     # split_data('RTX2080Ti_CPUALL')
     # delete_unvalid_data('T4_CPUALL')
     # split_data('T4_CPUALL')
-    delete_unvalid_data('P4_CPUALL')
-    split_data('P4_CPUALL')
+    delete_unvalid_data('P4_CPU100')
+    split_data('P4_CPU100')

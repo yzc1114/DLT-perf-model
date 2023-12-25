@@ -66,6 +66,14 @@ class GPUType(Enum):
     T4_CPU100 = 5
     T4_CPU80 = 6
     T4_CPU60 = 7
+    P4_CPUALL = 8
+    P4_CPU100 = 9
+    P4_CPU80 = 10
+    P4_CPU60 = 11
+    RTX3080Ti_CPUALL = 12
+    RTX3080Ti_CPU100 = 13
+    RTX3080Ti_CPU80 = 14
+    RTX3080Ti_CPU60 = 15
     RTX4090 = 8
     P40 = 9
     K80 = 10
