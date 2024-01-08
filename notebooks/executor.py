@@ -294,10 +294,17 @@ def single_train_loop(model_type: ModelType,
                       model: MModule,
                       compute_eval_metrics: Callable[[List, List, float], Dict],
                       to_device: Callable[[Any, Any], Tuple[Any, Any]],
+                      suffix = ""
                       ):
-    model_ckpts_dir = ckpts_dir / conf.dataset_environment_str / model_type.name
+    print(suffix)
+    if suffix != "":
+        model_ckpts_dir = ckpts_dir / suffix / conf.dataset_environment_str / model_type.name 
+    else:
+        model_ckpts_dir = ckpts_dir / conf.dataset_environment_str / model_type.name
+    print(model_ckpts_dir)
     save_path = generate_save_path(
         prefix="single_train", model_ckpts_dir=model_ckpts_dir)
+    
     processed_train_ds = preprocessed_train_ds
     train_records: Dict = dict()
     train_dl = DataLoader(processed_train_ds,
