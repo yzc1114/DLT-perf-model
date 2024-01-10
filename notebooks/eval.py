@@ -1,18 +1,19 @@
 import logging
+import os
 from typing import Dict, List
+import pandas as pd
 
 from ckpt_loader import load_train_records, TrainRecord
 from logger import init_logging
 from objects import ModelType, GPUType
-
+from pathlib import Path
 
 init_logging()
 
-# gpus = [gpu_type for gpu_type in GPUType]
-gpus = [GPUType.T4_CPUALL]
+gpus = [gpu_type for gpu_type in GPUType]
 train_models = [model_type for model_type in ModelType]
 
-
+BASE_DIR = Path(__file__).resolve().parent
 
 
 
@@ -35,12 +36,24 @@ if __name__ == '__main__':
     records: Dict[GPUType, Dict[ModelType, List[TrainRecord]]] = dict()
     best_records : Dict[GPUType, TrainRecord] = dict()
     metric_name = 'RMSE'
+    suffix = 'grouping'
+    train_models = [ModelType.PerfNet]
+    df = None
     for gpu in gpus:
         logging.info(f"GPU: {gpu.name}")
-        records[gpu] = load_train_records(gpu, train_models)
+        records[gpu] = load_train_records(gpu, train_models, prefix='op_based')
         best_records[gpu] = get_metirc_best_records(records[gpu], metric_name = metric_name)
         logging.info(f"Best records for metric {metric_name}")
         for model_type, record in best_records[gpu].items():
             if record is None:
                 continue
-            logging.info(f"Model: {model_type.name}, metric: {metric_name}, value: {record.optimal_eval_metric(metric_name).metrics[metric_name]}")
+            tmp = {
+                'env': gpu.name,
+                'Model':model_type.name,
+                'value':  record.optimal_eval_metric(metric_name).metrics[metric_name]
+            }
+            if df is None:
+                df = pd.DataFrame([tmp])
+            else:
+                df = pd.concat([df, pd.DataFrame([tmp])], ignore_index=True)
+    df.to_csv(os.path.join(BASE_DIR,'exp/model_compare', suffix, f'{metric_name}.csv'), index=False)
