@@ -27,3 +27,17 @@ class MetricUtil:
             "MAE": MAE,
             "RMSE": RMSE
         }
+        
+    @staticmethod
+    def mre(y_hat: np.ndarray, y: np.ndarray) -> float:
+        y = np.array(y)
+        y_hat = np.array(y_hat)
+        return np.sum(np.abs(y - y_hat) / y) / len(y)
+
+    @staticmethod
+    def rmse(y_hat: np.ndarray, y: np.ndarray) -> float:
+        y = np.array(y)
+        y_hat = np.array(y_hat)
+        y = y/1000
+        y_hat = y_hat/1000
+        return np.sqrt(np.sum(np.power(y - y_hat, 2)) / len(y))

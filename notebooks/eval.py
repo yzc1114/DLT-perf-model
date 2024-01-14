@@ -36,12 +36,12 @@ if __name__ == '__main__':
     records: Dict[GPUType, Dict[ModelType, List[TrainRecord]]] = dict()
     best_records : Dict[GPUType, TrainRecord] = dict()
     metric_name = 'RMSE'
-    suffix = 'grouping'
-    train_models = [ModelType.PerfNet]
+    suffix = 'subgraph'
+    train_models = [ModelType.LSTM]
     df = None
     for gpu in gpus:
         logging.info(f"GPU: {gpu.name}")
-        records[gpu] = load_train_records(gpu, train_models, prefix='op_based')
+        records[gpu] = load_train_records(gpu, train_models, prefix=suffix)
         best_records[gpu] = get_metirc_best_records(records[gpu], metric_name = metric_name)
         logging.info(f"Best records for metric {metric_name}")
         for model_type, record in best_records[gpu].items():
@@ -52,6 +52,7 @@ if __name__ == '__main__':
                 'Model':model_type.name,
                 'value':  record.optimal_eval_metric(metric_name).metrics[metric_name]
             }
+            print(tmp)
             if df is None:
                 df = pd.DataFrame([tmp])
             else:
